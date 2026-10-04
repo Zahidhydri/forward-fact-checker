@@ -487,42 +487,59 @@ export default function App() {
         </div>
       )}
 
-      {/* Jetpack Compose Input */}
+      {/* Jetpack Compose Material 3 Input Card */}
       <form onSubmit={handleManualSubmit} className="mb-3.5">
-        <div className="relative flex items-center">
-          <input
-            type="text"
+        <div className={`p-3 rounded-2xl border transition-all ${
+          isDark 
+            ? 'bg-slate-900 border-slate-800 focus-within:border-slate-700' 
+            : 'bg-white border-slate-300 focus-within:border-slate-400 shadow-sm'
+        }`}>
+          <textarea
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Paste viral claim, message, or link..."
-            className={`w-full border rounded-2xl pl-4 pr-[110px] py-3 text-xs font-bold focus:outline-none transition-all ${
-              isDark 
-                ? 'bg-slate-900 border-slate-800 text-slate-100 focus:border-slate-600' 
-                : 'bg-white border-slate-300 text-slate-900 focus:border-slate-400 shadow-sm'
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleManualSubmit(e);
+              }
+            }}
+            placeholder="Paste forwarded WhatsApp claim, viral message, or link to verify..."
+            rows={inputText.length > 80 ? 3 : 2}
+            className={`w-full bg-transparent text-xs font-medium focus:outline-none resize-none leading-relaxed ${
+              isDark ? 'text-slate-100 placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'
             }`}
           />
-          <div className="absolute right-1.5 flex items-center gap-1">
-            {inputText && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className={`p-2 rounded-xl transition flex items-center justify-center ${
-                  isDark 
-                    ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10' 
-                    : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
-                }`}
-                title="Clear claim"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 mt-1">
+            <div className="flex items-center gap-2">
+              {inputText ? (
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 ${
+                    isDark 
+                      ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10' 
+                      : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
+                  }`}
+                  title="Clear claim"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear</span>
+                </button>
+              ) : (
+                <span className="text-[10px] font-medium text-slate-500">
+                  Press Enter to verify
+                </span>
+              )}
+            </div>
+
             <button
               type="submit"
               disabled={loading || !inputText.trim()}
-              className={`px-3.5 py-2 rounded-xl text-white font-black text-xs transition disabled:opacity-40 flex items-center gap-1.5 shadow-sm transform active:scale-95 ${activeAccent.bgClass}`}
+              className={`px-4 py-2 rounded-xl text-white font-black text-xs transition disabled:opacity-40 flex items-center gap-1.5 shadow-sm transform active:scale-95 ${activeAccent.bgClass}`}
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Check</span>
+              <span>Verify Claim</span>
             </button>
           </div>
         </div>
