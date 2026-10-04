@@ -1,14 +1,18 @@
 /**
  * Forward Fact-Checker - WhatsApp Web Content Script
- * Observes WhatsApp Web chat stream and injects AI verification buttons.
+ * Observes WhatsApp Web chat stream, injects AI verification buttons, and handles auto-scanning.
  */
 
 const INJECT_BUTTON_CLASS = "ffc-verify-btn";
 const PROCESSED_ATTR = "data-ffc-processed";
+const AUTO_CHECKED_ATTR = "data-ffc-auto-checked";
 let isAutoCheckEnabled = true;
 
 // Track button that was recently clicked for quick badge update
 let lastClickedButton = null;
+
+// Track safety timeouts for active checking buttons to prevent infinite loading
+const buttonSafetyTimeouts = new WeakMap();
 
 // Check auto-check status from chrome storage
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -59,7 +63,8 @@ function findMessageText(row) {
   const primaryCandidates = [
     row.querySelector('.selectable-text.copyable-text'),
     row.querySelector('span._ao3e'),
-    row.querySelector('.selectable-text')
+    row.querySelector('.selectable-text'),
+    row.querySelector('span.copyable-text')
   ];
 
   for (const el of primaryCandidates) {
@@ -119,6 +124,15 @@ function findMessageMedia(row) {
   return null;
 }
 
+// Check if a message container is a forwarded message
+function isForwardedMessage(row) {
+  if (row.querySelector('[data-testid="forwarded"]') || row.querySelector('.forwarded')) {
+    return true;
+  }
+  const rawText = (row.innerText || row.textContent || '').toLowerCase();
+  return rawText.includes('forwarded') || rawText.includes('forwarded many times');
+}
+
 // Inline SVG Icons
 const ICONS = {
   checkClaim: `
@@ -156,17 +170,76 @@ const ICONS = {
     </svg>`
 };
 
+function triggerVerificationForButton(btn, row) {
+  const messageText = findMessageText(row);
+  const mediaInfo = findMessageMedia(row);
+
+  if (!messageText && !mediaInfo) {
+    btn.innerHTML = `<span>No Claim Found</span>`;
+    setTimeout(() => {
+      btn.innerHTML = `${ICONS.checkClaim}<span>Check Claim</span>`;
+    }, 1500);
+    return;
+  }
+
+  lastClickedButton = btn;
+  btn.setAttribute("data-ffc-checked-text", messageText);
+  btn.classList.add("ffc-btn-checking");
+  btn.innerHTML = `${ICONS.spinner}<span>Checking...</span>`;
+
+  // Clear existing safety timeout if any
+  if (buttonSafetyTimeouts.has(btn)) {
+    clearTimeout(buttonSafetyTimeouts.get(btn));
+  }
+
+  // Set safety timeout of 25s so button never gets stuck loading forever
+  const timer = setTimeout(() => {
+    if (btn.classList.contains("ffc-btn-checking")) {
+      btn.classList.remove("ffc-btn-checking");
+      btn.classList.add("ffc-badge-unverified");
+      btn.innerHTML = `${ICONS.unverified}<span>❓ Unverified</span>`;
+      btn.title = "Verification timeout. Click to retry.";
+    }
+  }, 25000);
+  buttonSafetyTimeouts.set(btn, timer);
+
+  const payload = {
+    action: "VERIFY_FROM_WHATSAPP",
+    text: messageText || "Image Claim",
+    mediaType: mediaInfo ? mediaInfo.type : "TEXT",
+    mediaUrl: mediaInfo ? mediaInfo.url : null
+  };
+
+  try {
+    chrome.runtime.sendMessage(payload, (response) => {
+      if (chrome.runtime.lastError) {
+        console.log("Forward Fact-Checker background listener:", chrome.runtime.lastError.message);
+      }
+    });
+  } catch (err) {
+    console.warn("Could not dispatch message to background worker:", err);
+  }
+}
+
 function injectVerifyButtons() {
   if (!isAutoCheckEnabled) return;
 
   const messageRows = document.querySelectorAll(
-    `div[data-testid="msg-container"]:not([${PROCESSED_ATTR}]), ` +
-    `div[role="row"]:not([${PROCESSED_ATTR}]), ` +
-    `.message-in:not([${PROCESSED_ATTR}]), ` +
-    `.message-out:not([${PROCESSED_ATTR}])`
+    `div[data-testid="msg-container"], ` +
+    `div[role="row"], ` +
+    `.message-in, ` +
+    `.message-out, ` +
+    `div[data-id]`
   );
 
+  let autoCheckDelay = 300;
+
   messageRows.forEach((row) => {
+    // Avoid double buttons in same container
+    if (row.querySelector(`.${INJECT_BUTTON_CLASS}`)) {
+      return;
+    }
+
     row.setAttribute(PROCESSED_ATTR, "true");
 
     const btn = document.createElement("button");
@@ -179,40 +252,7 @@ function injectVerifyButtons() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-
-      // Dynamically extract text AT THE MOMENT OF CLICK!
-      const messageText = findMessageText(row);
-      const mediaInfo = findMessageMedia(row);
-
-      if (!messageText && !mediaInfo) {
-        btn.innerHTML = `<span>No Claim Found</span>`;
-        setTimeout(() => {
-          btn.innerHTML = `${ICONS.checkClaim}<span>Check Claim</span>`;
-        }, 1500);
-        return;
-      }
-
-      lastClickedButton = btn;
-      btn.setAttribute("data-ffc-checked-text", messageText);
-      btn.classList.add("ffc-btn-checking");
-      btn.innerHTML = `${ICONS.spinner}<span>Checking...</span>`;
-
-      const payload = {
-        action: "VERIFY_FROM_WHATSAPP",
-        text: messageText || "Image Claim",
-        mediaType: mediaInfo ? mediaInfo.type : "TEXT",
-        mediaUrl: mediaInfo ? mediaInfo.url : null
-      };
-
-      try {
-        chrome.runtime.sendMessage(payload, (response) => {
-          if (chrome.runtime.lastError) {
-            console.log("Forward Fact-Checker background listener:", chrome.runtime.lastError.message);
-          }
-        });
-      } catch (err) {
-        console.warn("Could not dispatch message to background worker:", err);
-      }
+      triggerVerificationForButton(btn, row);
     });
 
     const computedPosition = window.getComputedStyle(row).position;
@@ -221,14 +261,36 @@ function injectVerifyButtons() {
     }
 
     row.appendChild(btn);
+
+    // Auto-check feature: If auto-check is ON and message is a forwarded message, auto-trigger check!
+    if (isAutoCheckEnabled && isForwardedMessage(row) && !row.hasAttribute(AUTO_CHECKED_ATTR)) {
+      row.setAttribute(AUTO_CHECKED_ATTR, "true");
+      setTimeout(() => {
+        if (isAutoCheckEnabled && document.body.contains(btn) && !btn.classList.contains("ffc-btn-checking")) {
+          triggerVerificationForButton(btn, row);
+        }
+      }, autoCheckDelay);
+      autoCheckDelay += 800; // Stagger requests to avoid overwhelming
+    }
   });
 }
 
 // ──────────────────────────────────────────────────────────
-// Listen for Live Verdict Results Broadcast from Side Panel
+// Listen for Live Verdict Results & Auto Check Toggles
 // ──────────────────────────────────────────────────────────
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "TOGGLE_AUTO_CHECK") {
+      isAutoCheckEnabled = request.enabled !== false;
+      if (!isAutoCheckEnabled) {
+        document.querySelectorAll(`.${INJECT_BUTTON_CLASS}`).forEach(el => el.remove());
+      } else {
+        injectVerifyButtons();
+      }
+      sendResponse({ status: "ok" });
+      return true;
+    }
+
     if (request.action === "UPDATE_WHATSAPP_BADGE" && request.verdict) {
       const verdict = request.verdict;
       const status = (verdict.status || verdict.label || 'UNVERIFIED').toUpperCase();
@@ -241,6 +303,11 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       }
 
       if (targetBtn) {
+        if (buttonSafetyTimeouts.has(targetBtn)) {
+          clearTimeout(buttonSafetyTimeouts.get(targetBtn));
+          buttonSafetyTimeouts.delete(targetBtn);
+        }
+
         targetBtn.classList.remove("ffc-btn-checking", "ffc-badge-scam", "ffc-badge-fake", "ffc-badge-misleading", "ffc-badge-verified", "ffc-badge-unverified");
 
         if (status === 'SCAM' || status === 'FAKE' || status === 'FALSE') {

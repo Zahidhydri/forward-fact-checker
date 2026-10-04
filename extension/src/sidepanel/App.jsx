@@ -166,9 +166,11 @@ export default function App() {
         chrome.storage.local.get(['latestVerification'], (res) => {
           if (res && res.latestVerification && res.latestVerification.payload) {
             const item = res.latestVerification;
+            // Clear storage right away to prevent re-triggering loops
+            chrome.storage.local.remove('latestVerification');
             if (Date.now() - item.timestamp < 60000) {
               const content = item.payload.content || item.payload.url || '';
-              if (content && !loading) {
+              if (content) {
                 setQuery(content);
                 setInputText(content);
                 startVerificationStream(content);
@@ -275,7 +277,15 @@ export default function App() {
           },
           onError: (errMsg) => {
             console.error('Backend verification error:', errMsg);
-            setError(typeof errMsg === 'string' ? errMsg : 'Backend verification error. Please try again.');
+            const errStr = typeof errMsg === 'string' ? errMsg : 'Backend verification error. Please try again.';
+            setError(errStr);
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+              chrome.runtime.sendMessage({
+                action: "VERDICT_COMPLETED",
+                text: textToVerify,
+                verdict: { status: 'UNVERIFIED', headline: 'Verification Failed', explanation: errStr }
+              }).catch(() => {});
+            }
           },
           onDone: () => {
             setLoading(false);
@@ -285,6 +295,13 @@ export default function App() {
       );
     } catch (err) {
       setError(err.message || 'Verification connection failed');
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          action: "VERDICT_COMPLETED",
+          text: textToVerify,
+          verdict: { status: 'UNVERIFIED', headline: 'Connection Failed', explanation: err.message }
+        }).catch(() => {});
+      }
     } finally {
       setLoading(false);
     }

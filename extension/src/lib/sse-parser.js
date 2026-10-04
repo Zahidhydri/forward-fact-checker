@@ -109,6 +109,14 @@ export async function streamVerification(url, payload, callbacks = {}, signal = 
 
   onStart();
 
+  const internalController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    internalController.abort();
+  }, 25000);
+
+  // Use provided signal if available, otherwise internal timeout signal
+  const effectiveSignal = signal || internalController.signal;
+
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -120,8 +128,10 @@ export async function streamVerification(url, payload, callbacks = {}, signal = 
         text: payload.text || payload.content || '',
         lang: payload.lang || 'en'
       }),
-      signal
+      signal: effectiveSignal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Backend status: ${response.status} ${response.statusText}`);
@@ -160,11 +170,15 @@ export async function streamVerification(url, payload, callbacks = {}, signal = 
 
     onDone();
   } catch (err) {
+    clearTimeout(timeoutId);
     if (err.name === 'AbortError') {
-      console.log('Stream aborted by user');
+      console.log('Stream aborted or timed out');
+      onError('Verification timed out or was cancelled');
     } else {
       console.error('Verification stream failed:', err);
       onError(err.message || 'Failed to connect to verification backend');
     }
+    onDone();
   }
 }
+

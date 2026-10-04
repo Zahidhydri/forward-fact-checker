@@ -29,7 +29,7 @@ async function openSidePanelAndVerify(tabId, payload) {
     });
 
     if (chrome.sidePanel && chrome.sidePanel.open) {
-      await chrome.sidePanel.open({ tabId });
+      await chrome.sidePanel.open({ tabId }).catch(() => {});
     }
 
     // Give sidepanel React app a moment to mount and register listener
@@ -40,14 +40,7 @@ async function openSidePanelAndVerify(tabId, payload) {
       }).catch(() => {
         // Suppress error if sidepanel is still initializing (it will read storage)
       });
-    }, 400);
-
-    setTimeout(() => {
-      chrome.runtime.sendMessage({
-        action: "START_VERIFICATION",
-        data: payload
-      }).catch(() => {});
-    }, 1000);
+    }, 300);
   } catch (err) {
     console.error("Failed to open side panel:", err);
   }
