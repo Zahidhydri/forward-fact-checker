@@ -102,6 +102,8 @@ export default function App() {
     setTimeout(() => setCopiedUrl(false), 2500);
   };
 
+  const isExtensionEnv = typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id);
+
   // Fallback logo URL for Chrome extension environment
   const resolvedLogoUrl = typeof chrome !== 'undefined' && chrome.runtime?.getURL 
     ? chrome.runtime.getURL('public/logo.png') 
@@ -322,19 +324,20 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Extension Setup Guide Button */}
-          <button
-            type="button"
-            onClick={() => setShowExtensionGuide(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-black transition ${
-              isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-            }`}
-            title="How to run as Chrome Extension"
-          >
-            <Puzzle className="w-3.5 h-3.5 text-blue-400" />
-            <span className="hidden sm:inline">Extension Setup</span>
-            <span className="sm:hidden">Install</span>
-          </button>
+          {/* Extension Setup Guide Button: Only visible in desktop mode, never in extension sidepanel */}
+          {!isExtensionEnv && (
+            <button
+              type="button"
+              onClick={() => setShowExtensionGuide(true)}
+              className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black transition ${
+                isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+              title="How to run as Chrome Extension"
+            >
+              <Puzzle className="w-3.5 h-3.5 text-blue-400" />
+              <span>Extension Setup</span>
+            </button>
+          )}
 
           {/* Material You Toggle Switch */}
           <button
