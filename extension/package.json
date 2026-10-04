@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:zip": "vite build && powershell -Command \"Compress-Archive -Path 'dist/*' -DestinationPath 'forward-fact-checker-extension.zip' -Force\"",
     "preview": "vite preview",
     "mock-backend": "node mock-server.js"
   },
