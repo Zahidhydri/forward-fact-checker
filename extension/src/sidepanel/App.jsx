@@ -166,7 +166,7 @@ export default function App() {
     try {
       await streamVerification(
         backendUrl,
-        { text: textToVerify, lang: selectedLang || 'en', timestamp: Date.now() },
+        { text: textToVerify, lang: 'en', timestamp: Date.now() },
         {
           onStart: () => {
             setCurrentStage('Running real-time fact checking...');
@@ -218,14 +218,13 @@ export default function App() {
 
             const cardText = rawVerdict.card_text || rawVerdict.explanation || textToVerify;
             setReplyCard({
-              en: cardText,
-              hi: `⚠️ *सावधान! यह मैसेज जांचा गया है* ⚠️\n\n${rawVerdict.card_text || rawVerdict.explanation || textToVerify}\n\n🛡️ _Forward Fact-Checker_`,
-              mr: `⚠️ *सावधान! या संदेशाची पडताळणी झाली आहे* ⚠️\n\n${rawVerdict.card_text || rawVerdict.explanation || textToVerify}\n\n🛡️ _Forward Fact-Checker_`,
-              hinglish: `⚠️ *Caution! Claim Verified* ⚠️\n\n${rawVerdict.card_text || rawVerdict.explanation || textToVerify}\n\n🛡️ _Verified via Forward Fact-Checker_`
+              en: cardText
             });
           },
           onCard: (cardPayload) => {
-            setReplyCard(cardPayload);
+            if (cardPayload && cardPayload.en) {
+              setReplyCard(cardPayload);
+            }
           },
           onError: (errMsg) => {
             console.error('Backend verification error:', errMsg);
@@ -590,7 +589,7 @@ export default function App() {
           accent={activeAccent}
         />
 
-        <VerdictCard verdict={verdict} isDark={isDark} />
+        <VerdictCard verdict={verdict} isDark={isDark} selectedLang={selectedLang} />
 
         {(replyCard || verdict) && (
           <ReplyGenerator 
