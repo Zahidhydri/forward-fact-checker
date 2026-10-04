@@ -390,38 +390,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Appearance Mode */}
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-wider block mb-2 text-slate-400">Appearance Mode:</label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setThemeMode('dark')}
-                  className={`flex-1 py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-2 border transition ${
-                    themeMode === 'dark' 
-                      ? 'bg-slate-800 text-white border-slate-600 font-black shadow-inner' 
-                      : isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-300 text-slate-700'
-                  }`}
-                >
-                  <Moon className="w-3.5 h-3.5" />
-                  <span>Dark Mode</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setThemeMode('light')}
-                  className={`flex-1 py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-2 border transition ${
-                    themeMode === 'light' 
-                      ? 'bg-slate-200 text-slate-950 border-slate-400 font-black shadow-inner' 
-                      : isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-300 text-slate-700'
-                  }`}
-                >
-                  <Sun className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Light Mode</span>
-                </button>
-              </div>
-            </div>
-
             {/* Language Selection */}
             <div>
               <label className="text-[10px] font-black uppercase tracking-wider block mb-2 text-slate-400">Language:</label>
@@ -465,33 +433,81 @@ export default function App() {
               </div>
             </div>
 
-            {/* Solid Bold Color Accent Themes */}
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-wider block mb-2 text-slate-400">Solid Color Theme:</label>
-              <div className="grid grid-cols-5 gap-2">
-                {ACCENT_THEMES.map((theme) => {
-                  const isSelected = accentColor === theme.id;
-                  return (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      onClick={() => setAccentColor(theme.id)}
-                      className={`py-2.5 px-1 rounded-2xl border text-center transition flex flex-col items-center justify-center gap-1.5 transform hover:scale-105 ${
-                        isSelected 
-                          ? 'border-white ring-2 ring-white/30 shadow-md' 
-                          : isDark ? 'bg-slate-950 border-slate-800 hover:bg-slate-800' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <span 
-                        className="w-5 h-5 rounded-full flex items-center justify-center text-white shadow-sm"
-                        style={{ backgroundColor: theme.primary }}
+            {/* Unified Theme & Appearance Styling Card */}
+            <div className={`p-3.5 rounded-2xl border ${
+              isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              {/* Row 1: Mode Switcher (Dark / Light) */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800/60 mb-3">
+                <div className="flex items-center gap-2">
+                  <Palette className="w-4 h-4" style={{ color: activeAccent.primary }} />
+                  <span className="text-xs font-black">Theme Mode</span>
+                </div>
+
+                {/* Segmented Pill for Dark / Light */}
+                <div className={`p-1 rounded-full border flex items-center gap-1 ${
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300 shadow-xs'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setThemeMode('dark')}
+                    className={`px-3 py-1 rounded-full text-[11px] font-black flex items-center gap-1.5 transition ${
+                      themeMode === 'dark'
+                        ? 'bg-slate-800 text-white shadow-sm'
+                        : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Moon className="w-3 h-3 text-blue-400" />
+                    <span>Dark</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setThemeMode('light')}
+                    className={`px-3 py-1 rounded-full text-[11px] font-black flex items-center gap-1.5 transition ${
+                      themeMode === 'light'
+                        ? 'bg-amber-100 text-amber-950 shadow-sm'
+                        : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Sun className="w-3 h-3 text-amber-500" />
+                    <span>Light</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 2: Accent Palette */}
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider block mb-2 text-slate-400">
+                  Accent Color:
+                </span>
+                <div className="grid grid-cols-5 gap-2">
+                  {ACCENT_THEMES.map((theme) => {
+                    const isSelected = accentColor === theme.id;
+                    return (
+                      <button
+                        key={theme.id}
+                        type="button"
+                        onClick={() => setAccentColor(theme.id)}
+                        className={`py-2 px-1 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 transform active:scale-95 ${
+                          isSelected 
+                            ? 'border-white ring-2 ring-white/30 shadow-md bg-white/10' 
+                            : isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-100'
+                        }`}
                       >
-                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                      </span>
-                      <span className="text-[9.5px] font-black truncate w-full px-0.5">{theme.name.split(' ')[1]}</span>
-                    </button>
-                  );
-                })}
+                        <span 
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-white shadow-sm"
+                          style={{ backgroundColor: theme.primary }}
+                        >
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </span>
+                        <span className="text-[9.5px] font-black truncate w-full px-0.5">
+                          {theme.name.split(' ')[1]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
