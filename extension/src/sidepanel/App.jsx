@@ -359,6 +359,37 @@ export default function App() {
               </button>
             </div>
 
+            {/* WhatsApp Auto-Check Toggle */}
+            <div className={`p-3 rounded-2xl border flex items-center justify-between ${
+              isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <div className={`p-2 rounded-xl ${
+                  autoCheckEnabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  <Power className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-black block">WhatsApp Auto-Check</span>
+                  <span className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {autoCheckEnabled ? 'Auto-scan incoming forwards' : 'Auto-scanning paused'}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAutoCheckEnabled(!autoCheckEnabled)}
+                className={`android-switch ${autoCheckEnabled ? 'active' : ''}`}
+                style={{ backgroundColor: autoCheckEnabled ? activeAccent.primary : isDark ? '#334155' : '#cbd5e1' }}
+                title={`Auto-check on WhatsApp is ${autoCheckEnabled ? 'ON' : 'OFF'}`}
+              >
+                <span className="android-switch-thumb flex items-center justify-center">
+                  <Power className={`w-3 h-3 ${autoCheckEnabled ? 'text-slate-900' : 'text-slate-400'}`} />
+                </span>
+              </button>
+            </div>
+
             {/* Appearance Mode */}
             <div>
               <label className="text-[10px] font-black uppercase tracking-wider block mb-2 text-slate-400">Appearance Mode:</label>
@@ -391,17 +422,9 @@ export default function App() {
               </div>
             </div>
 
-            {/* Target Language Option */}
+            {/* Language Selection */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Response & Card Language:</label>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300">
-                  {selectedLang === 'hi' ? 'हिन्दी Active' : selectedLang === 'mr' ? 'मराठी Active' : 'English Active'}
-                </span>
-              </div>
-              <p className={`text-[10px] font-medium mb-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Controls the language sent to the live AI model and auto-selects the WhatsApp debunk response tab.
-              </p>
+              <label className="text-[10px] font-black uppercase tracking-wider block mb-2 text-slate-400">Language:</label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
