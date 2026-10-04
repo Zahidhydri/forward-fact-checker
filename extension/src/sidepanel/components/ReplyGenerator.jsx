@@ -117,14 +117,14 @@ export function ReplyGenerator({ card = {}, verdict = {}, isDark = true, accent 
               key={lang.id}
               type="button"
               onClick={() => setSelectedLang(lang.id)}
-              className={`flex-1 py-1.5 px-2 rounded-full text-xs font-bold transition flex items-center justify-center gap-1 ${
+              className={`flex-1 py-1.5 px-1.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1 ${
                 isSelected
-                  ? 'bg-slate-800 text-white shadow-sm font-black'
+                  ? `${accent.bgClass || 'bg-blue-600 text-white'} shadow-sm font-black`
                   : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>{lang.flag}</span>
-              <span className="text-[11px]">{lang.label}</span>
+              <span className="text-[11px]">{lang.flag}</span>
+              <span className="text-[11px] font-black">{lang.label}</span>
             </button>
           );
         })}
