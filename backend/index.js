@@ -55,6 +55,7 @@ app.get('/health', (req, res) => {
  *   data: <JSON data>\n\n
  */
 function sendSSE(res, eventName, data) {
+  if (res.writableEnded) return;
   res.write(`event: ${eventName}\n`);
   res.write(`data: ${JSON.stringify(data)}\n\n`);
   if (typeof res.flush === 'function') {
@@ -65,9 +66,13 @@ function sendSSE(res, eventName, data) {
 /**
  * POST /verify - Stream verification events via Server-Sent Events (SSE)
  * Events emitted:
- *  - 'step': {"stage": "...", "message": "..."} (5 stages 1 second apart)
+ *  - 'step': {"stage": "...", "message": "..."} (5 stages)
  *  - 'verdict': {label, confidence, claims, sources, card_text}
  *  - 'error': {error, message, code}
+ *
+ * Query params:
+ *  - ?mock=1  → use fixed mock data (fallback)
+ *  - ?lang=hi → card_text in Hindi (default: en)
  */
 app.post('/verify', (req, res) => {
   // Set SSE Headers
@@ -97,88 +102,256 @@ app.post('/verify', (req, res) => {
 
   const { text, claim, message, query } = req.body || {};
   const claimText = text || claim || message || query || 'Forwarded message content';
+  const bodyLang = req.body && req.body.lang;
+  const queryLang = req.query && req.query.lang;
+  const lang = (bodyLang === 'hi' || queryLang === 'hi') ? 'hi' : 'en';
 
-  // 5 fixed mock steps with stages: extracting, searching, reading, cross-checking, writing
-  const mockSteps = [
-    {
-      stage: 'extracting',
-      message: 'Extracting key factual claims and analyzing language structure...'
-    },
-    {
-      stage: 'searching',
-      message: 'Searching fact-check databases, threat feeds, and web archives...'
-    },
-    {
-      stage: 'reading',
-      message: 'Reading and analyzing retrieved articles and primary evidence...'
-    },
-    {
-      stage: 'cross-checking',
-      message: 'Cross-checking claims against corroborating reports and consensus...'
-    },
-    {
-      stage: 'writing',
-      message: 'Formulating final verification verdict and shareable summary...'
-    }
-  ];
+  // Track whether the stream has been finalized to avoid double-end
+  let finalized = false;
 
-  // Final mock verdict matching README contract
-  const mockVerdict = {
-    label: 'MISLEADING',
-    confidence: 0.85,
-    claims: [
-      claimText
-    ],
-    sources: [
-      {
-        title: 'Google Fact Check Tools Explorer',
-        url: 'https://toolbox.google.com/factcheck/explorer',
-        snippet: 'Multiple verified fact-checking organizations rated this claim misleading or false.'
-      },
-      {
-        title: 'Reuters Fact Check Archive',
-        url: 'https://www.reuters.com/fact-check',
-        snippet: 'Independent verification indicates lack of credible source data for the viral forwarded message.'
-      },
-      {
-        title: 'Google Safe Browsing Threat Assessment',
-        url: 'https://safebrowsing.google.com',
-        snippet: 'No phishing, deception, or malware detected in the analyzed message URLs.'
-      }
-    ],
-    card_text: `⚠️ FACT CHECK: MISLEADING\n\nClaim: "${claimText}"\n\nVerdict: This forwarded claim is misleading. Independent fact-checkers and authoritative sources confirm there is no empirical evidence supporting this assertion.`
-  };
-
-  let stepIndex = 0;
-  let isClosed = false;
-  let timerId = null;
-
-  // Clean up if client prematurely terminates connection
-  res.on('close', () => {
+  // Helper to clean up and end response
+  function finalize() {
+    if (finalized) return;
+    finalized = true;
+    clearTimeout(overallTimeout);
     if (!res.writableEnded) {
-      isClosed = true;
-      if (timerId) {
-        clearTimeout(timerId);
-      }
-    }
-  });
-
-  // Stream 5 step events 1 second apart, then one verdict
-  function emitNext() {
-    if (isClosed || res.writableEnded) return;
-
-    if (stepIndex < mockSteps.length) {
-      sendSSE(res, 'step', mockSteps[stepIndex]);
-      stepIndex++;
-      timerId = setTimeout(emitNext, 1000);
-    } else {
-      sendSSE(res, 'verdict', mockVerdict);
       res.end();
     }
   }
 
-  // Start sending events
-  emitNext();
+  // 20-second overall timeout – emit error if we haven't finished
+  const overallTimeout = setTimeout(() => {
+    if (!finalized) {
+      sendSSE(res, 'error', {
+        error: 'TimeoutError',
+        message: 'Verification timed out after 20 seconds.',
+        code: 'TIMEOUT'
+      });
+      finalize();
+    }
+  }, 20000);
+
+  // Clean up if client prematurely terminates connection
+  res.on('close', () => {
+    if (!finalized) {
+      finalized = true;
+      clearTimeout(overallTimeout);
+    }
+  });
+
+  // ──────────────────────────────────────────────────────────
+  // MOCK FLOW (fallback when ?mock=1)
+  // ──────────────────────────────────────────────────────────
+  if (req.query && req.query.mock === '1') {
+    const mockSteps = [
+      { stage: 'extracting', message: 'Extracting key factual claims and analyzing language structure...' },
+      { stage: 'searching', message: 'Searching fact-check databases, threat feeds, and web archives...' },
+      { stage: 'reading', message: 'Reading and analyzing retrieved articles and primary evidence...' },
+      { stage: 'cross-checking', message: 'Cross-checking claims against corroborating reports and consensus...' },
+      { stage: 'writing', message: 'Formulating final verification verdict and shareable summary...' }
+    ];
+    const mockVerdict = {
+      label: 'MISLEADING',
+      confidence: 0.85,
+      claims: [claimText],
+      sources: [
+        { title: 'Google Fact Check Tools Explorer', url: 'https://toolbox.google.com/factcheck/explorer', snippet: 'Multiple verified fact-checking organizations rated this claim misleading or false.' },
+        { title: 'Reuters Fact Check Archive', url: 'https://www.reuters.com/fact-check', snippet: 'Independent verification indicates lack of credible source data for the viral forwarded message.' },
+        { title: 'Google Safe Browsing Threat Assessment', url: 'https://safebrowsing.google.com', snippet: 'No phishing, deception, or malware detected in the analyzed message URLs.' }
+      ],
+      card_text: `⚠️ FACT CHECK: MISLEADING\n\nClaim: "${claimText}"\n\nVerdict: This forwarded claim is misleading. Independent fact-checkers and authoritative sources confirm there is no empirical evidence supporting this assertion.`
+    };
+    let stepIdx = 0;
+    function emitMock() {
+      if (finalized || res.writableEnded) return;
+      if (stepIdx < mockSteps.length) {
+        sendSSE(res, 'step', mockSteps[stepIdx]);
+        stepIdx++;
+        setTimeout(emitMock, 1000);
+      } else {
+        sendSSE(res, 'verdict', mockVerdict);
+        finalize();
+      }
+    }
+    emitMock();
+    return;
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // REAL FLOW – Tavily search → Gemini analysis → verdict
+  // ──────────────────────────────────────────────────────────
+  (async () => {
+    try {
+      // (1) extracting
+      sendSSE(res, 'step', {
+        stage: 'extracting',
+        message: 'Extracting key factual claims from the forwarded message...'
+      });
+
+      // (2) searching – Tavily API
+      sendSSE(res, 'step', {
+        stage: 'searching',
+        message: 'Searching the web for relevant sources via Tavily...'
+      });
+
+      const tavilyKey = process.env.TAVILY_API_KEY;
+      if (!tavilyKey) throw new Error('TAVILY_API_KEY is not configured');
+
+      const tavilyResp = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: tavilyKey,
+          query: claimText,
+          max_results: 5
+        })
+      });
+
+      if (!tavilyResp.ok) {
+        const errBody = await tavilyResp.text().catch(() => '');
+        throw new Error(`Tavily API error (${tavilyResp.status}): ${errBody.slice(0, 200)}`);
+      }
+
+      const tavilyData = await tavilyResp.json();
+      const sources = (tavilyData.results || []).map(r => ({
+        title: r.title || '',
+        url: r.url || '',
+        snippet: (r.content || '').slice(0, 300)
+      }));
+
+      if (finalized) return; // client disconnected mid-flow
+
+      // (3) reading
+      sendSSE(res, 'step', {
+        stage: 'reading',
+        message: 'Reading and analyzing the retrieved articles...'
+      });
+
+      if (finalized) return;
+
+      // (4) cross-checking – Gemini API (single call)
+      sendSSE(res, 'step', {
+        stage: 'cross-checking',
+        message: 'Cross-checking claim against sources using Gemini...'
+      });
+
+      const geminiKey = process.env.GEMINI_API_KEY;
+      if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured');
+
+      const langName = lang === 'hi' ? 'Hindi' : 'English';
+      const geminiPrompt = `You are a rigorous fact-checker for viral forwarded messages.
+
+CLAIM TO VERIFY:
+"${claimText}"
+
+SOURCES (use ONLY these – never fabricate or invent URLs):
+${JSON.stringify(sources, null, 2)}
+
+TASK:
+Analyze the claim against the sources above and produce a verification verdict as strict JSON matching this exact schema:
+
+{
+  "label": "<one of: TRUE, FALSE, MISLEADING, SCAM, SATIRE, UNVERIFIED>",
+  "confidence": <float between 0 and 1>,
+  "claims": ["<extracted claim 1>", "<extracted claim 2>", ...],
+  "card_text": "<short user-facing summary>"
+}
+
+RULES:
+- label MUST be UPPERCASE. If the sources do not clearly support any verdict, use "UNVERIFIED".
+- confidence: how certain you are (0 = no idea, 1 = certain).
+- claims: list the key factual claims you extracted from the message (strings).
+- card_text: write in ${langName}. Keep it friendly, light, and easy to share – BUT if label is SCAM, be serious and warn clearly. Use emojis sparingly.
+- Do NOT invent any URLs or sources beyond what is provided above.
+- Return ONLY valid JSON, no markdown fences, no extra text.`;
+
+      // Helper: call Gemini with a given model, return Response
+      const callGemini = (model) => fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: geminiPrompt }] }],
+            generationConfig: { responseMimeType: 'application/json' }
+          })
+        }
+      );
+
+      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+      // Try gemini-flash-latest, retry once on 503/429 after 2s,
+      // then fallback to gemini-flash-lite-latest
+      let geminiResp = await callGemini('gemini-flash-latest');
+
+      if (geminiResp.status === 503 || geminiResp.status === 429) {
+        await delay(2000);
+        geminiResp = await callGemini('gemini-flash-latest');
+      }
+
+      if (geminiResp.status === 503 || geminiResp.status === 429) {
+        geminiResp = await callGemini('gemini-flash-lite-latest');
+      }
+
+      if (!geminiResp.ok) {
+        const errBody = await geminiResp.text().catch(() => '');
+        throw new Error(`Gemini API error (${geminiResp.status}): ${errBody.slice(0, 200)}`);
+      }
+
+      const geminiData = await geminiResp.json();
+      const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) throw new Error('Gemini returned no content');
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (parseErr) {
+        throw new Error(`Failed to parse Gemini JSON: ${parseErr.message}`);
+      }
+
+      if (finalized) return;
+
+      // Normalize and build the verdict object
+      const validLabels = ['TRUE', 'FALSE', 'MISLEADING', 'SCAM', 'SATIRE', 'UNVERIFIED'];
+      let label = (parsed.label || 'UNVERIFIED').toUpperCase();
+      if (!validLabels.includes(label)) label = 'UNVERIFIED';
+
+      const verdict = {
+        label,
+        confidence: typeof parsed.confidence === 'number'
+          ? Math.max(0, Math.min(1, parsed.confidence))
+          : 0,
+        claims: Array.isArray(parsed.claims)
+          ? parsed.claims.map(c => String(c))
+          : [claimText],
+        sources,
+        card_text: typeof parsed.card_text === 'string'
+          ? parsed.card_text
+          : ''
+      };
+
+      // (5) writing
+      sendSSE(res, 'step', {
+        stage: 'writing',
+        message: 'Formulating the final verdict and shareable summary...'
+      });
+
+      // (6) verdict
+      sendSSE(res, 'verdict', verdict);
+      finalize();
+
+    } catch (err) {
+      // On any failure, emit an error event so the stream never hangs
+      if (!finalized) {
+        sendSSE(res, 'error', {
+          error: err.name || 'VerificationError',
+          message: err.message || 'An unexpected error occurred during verification.',
+          code: 'VERIFICATION_FAILURE'
+        });
+        finalize();
+      }
+    }
+  })();
 });
 
 // Start local server if run directly (node index.js)

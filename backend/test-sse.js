@@ -15,7 +15,7 @@ const server = app.listen(0, async () => {
   const options = {
     hostname: '127.0.0.1',
     port: port,
-    path: '/verify',
+    path: '/verify?mock=1',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
