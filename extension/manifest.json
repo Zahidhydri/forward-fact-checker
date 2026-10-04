@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Forward Fact-Checker",
+  "version": "1.0.0",
+  "description": "Verify viral WhatsApp forwards, scams, deepfakes, and claims directly with AI Fact-Checking agent.",
+  "permissions": [
+    "contextMenus",
+    "sidePanel",
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "action": {
+    "default_icon": {
+      "16": "public/icon16.png",
+      "48": "public/icon48.png",
+      "128": "public/icon128.png"
+    },
+    "default_title": "Forward Fact-Checker"
+  },
+  "background": {
+    "service_worker": "src/background/background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["src/content/content.js"],
+      "css": ["src/content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "public/icon16.png",
+    "48": "public/icon48.png",
+    "128": "public/icon128.png"
+  }
+}

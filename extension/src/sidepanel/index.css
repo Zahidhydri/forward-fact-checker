@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Google Sans', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --md-sys-color-primary: #006c4c;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #6cdbac;
+  --md-sys-color-on-primary-container: #002114;
+}
+
+/* Material You Theme Tokens */
+.theme-dark {
+  --md-sys-color-surface: #0f172a;
+  --md-sys-color-surface-container: #1e293b;
+  --md-sys-color-surface-container-high: #334155;
+  --md-sys-color-on-surface: #f8fafc;
+  --md-sys-color-on-surface-variant: #94a3b8;
+  --md-sys-color-outline: #475569;
+}
+
+.theme-light {
+  --md-sys-color-surface: #f8fafc;
+  --md-sys-color-surface-container: #ffffff;
+  --md-sys-color-surface-container-high: #f1f5f9;
+  --md-sys-color-on-surface: #0f172a;
+  --md-sys-color-on-surface-variant: #64748b;
+  --md-sys-color-outline: #cbd5e1;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Material Compose Card Utility */
+.compose-card {
+  border-radius: 1.5rem; /* 24px rounded like Jetpack Compose Surface */
+  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.15s cubic-bezier(0.2, 0, 0, 1), background-color 0.2s ease;
+}
+
+.compose-pill {
+  border-radius: 9999px;
+}
+
+/* Material You Toggle Switch (Android 16/17 style) */
+.android-switch {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  border-radius: 9999px;
+  transition: background-color 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.android-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), width 0.2s ease, height 0.2s ease;
+}
+
+.android-switch.active .android-switch-thumb {
+  transform: translateX(22px);
+}
+
+/* Material Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
