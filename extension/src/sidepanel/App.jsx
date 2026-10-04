@@ -80,26 +80,32 @@ export default function App() {
   const isDark = themeMode === 'dark';
   const activeAccent = getAccentStyles(accentColor);
 
-  const handleOpenOrCopyExtensionsUrl = () => {
+  const handleOpenOrCopyExtensionsUrl = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
       try {
-        chrome.tabs.create({ url: 'chrome://extensions' });
+        chrome.tabs.create({ url: 'chrome://extensions/' });
       } catch (e) {
         // Fallback
       }
     } else {
       try {
-        window.open('chrome://extensions', '_blank');
+        window.open('chrome://extensions/', '_blank');
       } catch (e) {
-        // Browsers restrict navigation to chrome://
+        // Browsers restrict direct navigation to chrome:// from web pages
       }
     }
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText('chrome://extensions').catch(() => {});
+      navigator.clipboard.writeText('chrome://extensions/').catch(() => {});
     }
+
     setCopiedUrl(true);
-    setTimeout(() => setCopiedUrl(false), 2500);
+    setTimeout(() => setCopiedUrl(false), 3500);
   };
 
   const isExtensionEnv = typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id);
@@ -584,152 +590,233 @@ export default function App() {
         </div>
       )}
 
-      {/* Extension Developer Setup Modal */}
+      {/* Extension Developer Setup Modal - Wide Desktop View */}
       {showExtensionGuide && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto"
           onClick={() => setShowExtensionGuide(false)}
         >
           <div 
-            className={`compose-card max-w-md w-full p-5 border shadow-2xl space-y-4 rounded-3xl transform transition-all ${
+            className={`compose-card max-w-4xl lg:max-w-5xl w-full p-6 md:p-8 border shadow-2xl rounded-3xl transform transition-all my-auto space-y-6 ${
               isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b pb-3 border-slate-700/40">
-              <span className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
-                <Puzzle className="w-4 h-4 text-blue-400" />
-                <span>Run in WhatsApp Web (Chrome Extension)</span>
-              </span>
-              <button 
-                onClick={() => setShowExtensionGuide(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
+            {/* Header section with badge & quick actions */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 border-slate-700/40 gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <Puzzle className="w-5 h-5 text-blue-400" />
+                  </span>
+                  <h3 className="font-black text-lg md:text-xl tracking-tight">
+                    WhatsApp Web Extension Developer Setup Guide
+                  </h3>
+                </div>
+                <p className={`text-xs md:text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Follow these 4 steps to install Forward Fact-Checker directly into <strong>web.whatsapp.com</strong> for automated in-chat verification.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start md:self-auto">
+                <button 
+                  onClick={() => setShowExtensionGuide(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  title="Close Setup Guide"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Forward Fact-Checker integrates directly into <strong>web.whatsapp.com</strong> to detect incoming forwarded messages and provide 1-click in-chat verification.
-            </p>
-
-            <div className="space-y-2.5">
+            {/* Desktop Wide 4-Column Card Grid Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+              
               {/* Step 1: Open chrome://extensions */}
-              <div className={`p-3 rounded-2xl border flex items-start gap-3 ${
-                isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+              <div className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3 relative overflow-hidden ${
+                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200 shadow-sm'
               }`}>
-                <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                  1
-                </span>
-                <div className="text-xs flex-1">
-                  <p className="font-black">Open Extensions in Chrome</p>
-                  <p className={`text-[11px] mt-1 flex flex-wrap items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    <span>Go to</span>
-                    <a
-                      href="chrome://extensions/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
-                          e.preventDefault();
-                          chrome.tabs.create({ url: 'chrome://extensions/' });
-                        }
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-mono text-[11px] font-bold shadow-sm transition group"
-                      title="Open chrome://extensions/ in a new tab"
-                    >
-                      <span>chrome://extensions/</span>
-                      <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                    </a>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="w-7 h-7 rounded-xl bg-blue-600 text-white font-black text-xs flex items-center justify-center shadow-md">
+                      01
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      Browser Setup
+                    </span>
+                  </div>
+                  <h4 className="font-black text-sm pt-1">Open Extensions</h4>
+                  <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Open Chrome Extensions manager tab in your browser.
                   </p>
-                  <p className={`text-[10px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Opens Google Chrome's extensions manager in a new tab.
-                  </p>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenOrCopyExtensionsUrl}
+                    className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-mono text-xs font-bold transition shadow-sm ${
+                      copiedUrl
+                        ? 'bg-emerald-600 text-white border border-emerald-500'
+                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                    }`}
+                    title="Click to copy chrome://extensions/ to clipboard"
+                  >
+                    {copiedUrl ? (
+                      <>
+                        <Check className="w-4 h-4 text-white" />
+                        <span>Copied URL!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>chrome://extensions/</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className={`p-2.5 rounded-xl border text-[10px] ${
+                    copiedUrl 
+                      ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300' 
+                      : isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
+                  }`}>
+                    {copiedUrl ? (
+                      <span className="font-bold flex items-center gap-1.5 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                        Copied to clipboard! Open a new tab and paste (Ctrl+V).
+                      </span>
+                    ) : (
+                      <span>
+                        💡 <strong>Browser Security Note:</strong> Chrome blocks web pages from launching <code className="text-blue-400 font-mono">chrome://</code> links directly. Click above to copy, then paste into address bar.
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Step 2: Enable Developer Mode */}
-              <div className={`p-3 rounded-2xl border flex items-start gap-3 ${
-                isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+              <div className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3 relative overflow-hidden ${
+                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200 shadow-sm'
               }`}>
-                <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                  2
-                </span>
-                <div className="text-xs">
-                  <p className="font-black">Enable Developer Mode</p>
-                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Toggle on <strong>Developer mode</strong> in the top-right corner of the extensions page.
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="w-7 h-7 rounded-xl bg-purple-600 text-white font-black text-xs flex items-center justify-center shadow-md">
+                      02
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                      Toggle Option
+                    </span>
+                  </div>
+                  <h4 className="font-black text-sm pt-1">Developer Mode</h4>
+                  <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Toggle on <strong>Developer mode</strong> in the top-right corner of the Extensions page.
                   </p>
+                </div>
+
+                <div className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                }`}>
+                  <span className="text-xs font-bold flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-purple-400" />
+                    Developer Mode
+                  </span>
+                  <div className="w-9 h-5 rounded-full bg-purple-600 p-0.5 flex items-center justify-end shadow-inner">
+                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                  </div>
                 </div>
               </div>
 
               {/* Step 3: Download & Load Unpacked */}
-              <div className={`p-3 rounded-2xl border flex flex-col gap-2.5 ${
-                isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+              <div className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3 relative overflow-hidden ${
+                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200 shadow-sm'
               }`}>
-                <div className="flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                    3
-                  </span>
-                  <div className="text-xs flex-1">
-                    <p className="font-black">Download & Click "Load Unpacked"</p>
-                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      Download the pre-packaged extension zip below, extract it, then click <strong>Load Unpacked</strong> and select the extracted folder (or repo's <code className="px-1.5 py-0.5 rounded bg-slate-800 text-emerald-300 font-mono">extension/dist</code>).
-                    </p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-md">
+                      03
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Install Extension
+                    </span>
                   </div>
+                  <h4 className="font-black text-sm pt-1">Load Unpacked</h4>
+                  <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Download the extension ZIP, extract it, and click <strong>Load Unpacked</strong> to select the folder.
+                  </p>
                 </div>
 
-                {/* Prominent One-Click Download Button */}
-                <div className="pl-9 pr-1">
+                <div className="space-y-1.5">
                   <a
                     href="/forward-fact-checker-extension.zip"
                     download="forward-fact-checker-extension.zip"
-                    className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black text-xs shadow-md shadow-emerald-950/30 transition transform active:scale-98 group no-underline"
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black text-xs shadow-md transition group no-underline"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <Download className="w-4 h-4 flex-shrink-0 group-hover:-translate-y-0.5 transition-transform" />
-                      <span className="tracking-wide">Download Extension (ZIP)</span>
+                      <span className="truncate">Download ZIP</span>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-black/30 text-emerald-100">
-                      dist.zip • Ready
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/30 text-emerald-100 flex-shrink-0">
+                      Ready
                     </span>
                   </a>
-                  <p className={`text-[10px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    💡 <em>Extract the ZIP, then choose that folder in Chrome's "Load unpacked" dialog.</em>
+                  <p className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Extract folder & select <code className="font-mono text-emerald-400">extension/dist</code>.
                   </p>
                 </div>
               </div>
 
-              {/* Step 4: Open WhatsApp Web */}
-              <div className={`p-3 rounded-2xl border flex items-start gap-3 ${
-                isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+              {/* Step 4: Launch WhatsApp Web */}
+              <div className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3 relative overflow-hidden ${
+                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200 shadow-sm'
               }`}>
-                <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                  4
-                </span>
-                <div className="text-xs">
-                  <p className="font-black">Open WhatsApp Web</p>
-                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Visit <code className="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 font-mono">web.whatsapp.com</code> — <strong>"Verify Claim"</strong> badges will appear automatically on forwarded messages!
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="w-7 h-7 rounded-xl bg-teal-600 text-white font-black text-xs flex items-center justify-center shadow-md">
+                      04
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                      Ready to Use
+                    </span>
+                  </div>
+                  <h4 className="font-black text-sm pt-1">Open WhatsApp Web</h4>
+                  <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Visit <strong className="text-teal-400">web.whatsapp.com</strong>. Verification badges will appear automatically!
                   </p>
                 </div>
+
+                <a
+                  href="https://web.whatsapp.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-black border transition flex items-center justify-center gap-2 no-underline ${
+                    isDark ? 'bg-teal-950/60 border-teal-800 text-teal-200 hover:bg-teal-900/80' : 'bg-teal-50 border-teal-200 text-teal-900 hover:bg-teal-100'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Launch WhatsApp Web</span>
+                  <ExternalLink className="w-3 h-3 text-teal-400 ml-auto" />
+                </a>
               </div>
+
             </div>
 
-            <div className={`p-2.5 rounded-xl border text-[11px] font-medium flex items-center gap-2 ${
-              isDark ? 'bg-blue-950/40 border-blue-800/60 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-900'
-            }`}>
-              <CheckCircle2 className="w-4 h-4 text-blue-400 flex-shrink-0" />
-              <span>Official Chrome Web Store public listing is in review.</span>
-            </div>
+            {/* Bottom Info Bar & Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between pt-2 border-t border-slate-700/40 gap-3">
+              <div className={`text-xs font-medium flex items-center gap-2 ${
+                isDark ? 'text-slate-400' : 'text-slate-600'
+              }`}>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>Compatible with Chrome, Brave, Edge & all Chromium desktop browsers</span>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setShowExtensionGuide(false)}
-              className={`w-full py-2.5 rounded-full font-black text-xs transition ${activeAccent.bgClass}`}
-            >
-              Got It, Close
-            </button>
+              <button
+                type="button"
+                onClick={() => setShowExtensionGuide(false)}
+                className={`w-full sm:w-auto px-8 py-2.5 rounded-full font-black text-xs transition ${activeAccent.bgClass}`}
+              >
+                Got It, Close Guide
+              </button>
+            </div>
           </div>
         </div>
       )}
