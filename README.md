@@ -173,6 +173,6 @@ data: {
 ## Vercel Deployment
 
 Deployable via Vercel with zero configuration:
-- Configured with `vercel.json` rewrites.
+- Configured with `vercel.json` (`builds` and `routes` using `@vercel/node`).
 - Compatible with root repository deployment or subpath `/backend` deployment.
 - Supports streaming Server-Sent Events natively.
