@@ -1,4 +1,4 @@
-# 🛡️ Forward Fact-Checker - Chrome Extension (Person B Role)
+# 🛡️ Forward Fact-Checker - Chrome Extension
 
 AI-powered Chrome Extension (Manifest V3) that detects scams, viral fake news, and manipulated forwards directly inside **WhatsApp Web** and across any webpage.
 
@@ -8,10 +8,7 @@ AI-powered Chrome Extension (Manifest V3) that detects scams, viral fake news, a
 
 ```
 extension/
-├── public/                     # Static Extension Icons (16x16, 48x48, 128x128)
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
+├── public/                     # Static Extension Icons (logo.png, icon16, icon48, icon128)
 ├── src/
 │   ├── background/
 │   │   └── background.js       # Manifest V3 Service Worker (Context Menus, Tab Events, Relay)
@@ -20,75 +17,55 @@ extension/
 │   │   └── content.css         # WhatsApp UI Injected Button Styling & Animations
 │   ├── sidepanel/
 │   │   ├── components/
-│   │   │   ├── AgentSteps.jsx      # Live Animated Multi-Agent Reasoning Pipeline
+│   │   │   ├── AgentSteps.jsx      # Auto-Collapsing Multi-Agent Reasoning Pipeline
 │   │   │   ├── VerdictCard.jsx     # High-Impact Verdict Card (SCAM/FAKE/MISLEADING/TRUE)
 │   │   │   ├── ReplyGenerator.jsx  # 1-Click WhatsApp Debunk Cards (Hindi, English, Marathi, Hinglish)
 │   │   │   └── ScamCounter.jsx     # Scam Statistics & Quick Interactive Viral Samples
 │   │   ├── App.jsx             # Main React Application & State Machine
 │   │   ├── main.jsx            # React Entry Point
-│   │   ├── index.css           # Tailwind + Custom Glassmorphism Styles
+│   │   ├── index.css           # Tailwind + Custom Material 3 Styling
 │   │   └── index.html          # Side Panel HTML Page
 │   └── lib/
-│       └── sse-parser.js       # Resilient Server-Sent Events (SSE) Stream Consumer
-├── mock-server.js              # Express + SSE Mock Backend for Local Testing
+│       └── sse-parser.js       # Server-Sent Events (SSE) Stream Consumer
 ├── manifest.json               # Manifest V3 Specification
-├── vite.config.js              # Vite Multi-Entry Chrome Extension Bundler
+├── vite.config.js              # Vite Chrome Extension Bundler
 └── package.json
 ```
 
 ---
 
-## 🚀 How to Run & Test
+## 🚀 How to Run Frontend in Dev Mode
 
-### 1. Install Dependencies & Build Extension
+### 1. Install Dependencies & Start Dev Server
 ```bash
 cd extension
 npm install
-npm run build
+npm run dev
 ```
-This outputs the complete, ready-to-load Chrome Extension into `extension/dist/`.
+Dev server will start on `http://localhost:5173/` for instant live reload and UI testing.
 
 ---
 
-### 2. Load Unpacked in Google Chrome
-1. Open Chrome and navigate to `chrome://extensions/`.
-2. Toggle **Developer mode** in the top-right corner.
-3. Click **Load unpacked**.
-4. Select the `extension/dist` folder (or `extension` folder).
-5. Open [WhatsApp Web](https://web.whatsapp.com) or any webpage!
+## 📦 How to Build & Load Extension in Chrome
 
----
-
-### 3. Run Mock SSE Backend (For Testing)
-To test live real-time streaming steps and verdicts before backend integration:
+### 1. Build Production Bundle
 ```bash
 cd extension
-npm run mock-backend
+npm run build
 ```
-Server will start on `http://localhost:3000`. The side panel connects to `POST http://localhost:3000/verify` and streams live agent steps!
+This generates the optimized, production-ready extension in `extension/dist/`.
+
+### 2. Load Unpacked in Google Chrome
+1. Open Google Chrome and navigate to `chrome://extensions/`.
+2. Toggle **Developer mode** in the top-right corner.
+3. Click **Load unpacked**.
+4. Select the `extension/dist` folder.
+5. The **Forward Fact-Checker** extension icon 🛡️ will appear in your Chrome toolbar!
 
 ---
 
-## 📡 Backend Integration Contract (Person A Specification)
+## 📡 Live Backend Connection
 
-The Side Panel expects an **SSE (Server-Sent Events)** stream from `POST /verify`:
-
-```json
-// Headers:
-Content-Type: text/event-stream
-Cache-Control: no-cache
-Connection: keep-alive
-
-// 1. Agent Reasoning Step Event:
-data: {"type":"STEP","payload":{"step":"extract_claims","status":"running","label":"Extracting Core Claims"}}
-data: {"type":"STEP","payload":{"step":"extract_claims","status":"done","duration":0.7,"details":"Found 2 claims"}}
-
-// 2. Final Verdict Event:
-data: {"type":"VERDICT","payload":{"status":"SCAM","confidence":0.98,"risk_level":"critical","headline":"Phishing Scam","explanation":"Government does not offer free 5G recharge.","evidence":["No TRAI circular","Phishing domain"],"sources":[{"name":"PIB Fact Check","url":"https://factcheck.pib.gov.in"}]}}
-
-// 3. Multi-Lingual WhatsApp Reply Cards:
-data: {"type":"CARD","payload":{"hi":"⚠️ *सावधान! यह दावा फेक है*...","en":"⚠️ *WARNING: FAKE*...","mr":"⚠️ *सावधान! हा मेसेज खोटा आहे*...","hinglish":"⚠️ *Caution! Fake forward*..."}}
-
-// 4. Stream Completion:
-data: [DONE]
-```
+The sidepanel automatically connects directly to the live AI backend:
+- **Live Endpoint:** `POST https://forward-fact-checker.vercel.app/verify`
+- **Streaming:** Server-Sent Events (SSE) emitting real-time agent reasoning steps and final verified verdict.
