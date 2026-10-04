@@ -256,12 +256,18 @@ function injectVerifyButtons() {
       triggerVerificationForButton(btn, row);
     });
 
-    const computedPosition = window.getComputedStyle(row).position;
-    if (!computedPosition || computedPosition === "static") {
-      row.style.position = "relative";
-    }
+    // Target inner bubble container so button sits directly on the message bubble
+    const targetContainer = row.querySelector('.copyable-text') || 
+                            row.querySelector('div[data-id]') || 
+                            row;
 
-    row.appendChild(btn);
+    const computedPosition = window.getComputedStyle(targetContainer).position;
+    if (!computedPosition || computedPosition === "static") {
+      targetContainer.style.position = "relative";
+    }
+    targetContainer.style.overflow = "visible";
+
+    targetContainer.appendChild(btn);
 
     // Auto-check feature: If auto-check is ON and message is a forwarded message, auto-trigger check!
     if (isAutoCheckEnabled && isForwardedMessage(row) && !row.hasAttribute(AUTO_CHECKED_ATTR)) {
