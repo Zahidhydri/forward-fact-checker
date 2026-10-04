@@ -22,6 +22,7 @@ import { ReplyGenerator } from './components/ReplyGenerator';
 import { ScamCounter } from './components/ScamCounter';
 import { streamVerification } from '../lib/sse-parser';
 import { ACCENT_THEMES, getAccentStyles } from './theme';
+import logoUrl from '../../public/logo.png';
 
 const DEFAULT_BACKEND_URL = "https://forward-fact-checker.vercel.app/verify";
 
@@ -66,9 +67,10 @@ export default function App() {
   const isDark = themeMode === 'dark';
   const activeAccent = getAccentStyles(accentColor);
 
+  // Fallback logo URL for Chrome extension environment
   const resolvedLogoUrl = typeof chrome !== 'undefined' && chrome.runtime?.getURL 
     ? chrome.runtime.getURL('public/logo.png') 
-    : '/logo.png';
+    : logoUrl;
 
   // Synchronize Theme Mode & Accent Color on Root HTML Document
   useEffect(() => {
@@ -385,20 +387,20 @@ export default function App() {
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* Header App Bar */}
-      <header className={`flex items-center justify-between pb-3 mb-3 border-b ${
+      <header className={`flex items-center justify-between pb-3.5 mb-3.5 border-b ${
         isDark ? 'border-slate-800/80' : 'border-slate-200'
       }`}>
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 p-1 rounded-2xl flex items-center justify-center bg-slate-900/90 border border-slate-800 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="h-11 px-2.5 rounded-2xl flex items-center justify-center bg-slate-900/90 border border-slate-800 shadow-md">
             {!imgError ? (
               <img 
                 src={resolvedLogoUrl} 
                 alt="Forward Fact-Checker Logo" 
-                className="h-full w-full object-contain"
+                className="h-9 w-auto max-h-9 object-contain"
                 onError={() => setImgError(true)}
               />
             ) : (
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              <ShieldCheck className="w-6 h-6 text-emerald-400" />
             )}
           </div>
           <div>
@@ -594,19 +596,23 @@ export default function App() {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Paste viral claim, message, or link..."
-            className={`w-full border rounded-2xl pl-4 pr-24 py-3 text-xs font-bold focus:outline-none transition-all ${
+            className={`w-full border rounded-2xl pl-4 pr-[110px] py-3 text-xs font-bold focus:outline-none transition-all ${
               isDark 
                 ? 'bg-slate-900 border-slate-800 text-slate-100 focus:border-slate-600' 
                 : 'bg-white border-slate-300 text-slate-900 focus:border-slate-400 shadow-sm'
             }`}
           />
-          <div className="absolute right-1.5 flex items-center gap-1.5">
+          <div className="absolute right-1.5 flex items-center gap-1">
             {inputText && (
               <button
                 type="button"
                 onClick={handleClear}
-                className="p-1.5 text-slate-400 hover:text-slate-600"
-                title="Clear input"
+                className={`p-2 rounded-xl transition flex items-center justify-center ${
+                  isDark 
+                    ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10' 
+                    : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
+                }`}
+                title="Clear claim"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -688,14 +694,14 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className={`pt-2.5 border-t text-center text-[10px] font-bold flex items-center justify-between ${
+      <footer className={`pt-3 border-t text-center text-[11px] font-bold flex items-center justify-between ${
         isDark ? 'border-slate-800/80 text-slate-400' : 'border-slate-200 text-slate-600'
       }`}>
-        <div className="flex items-center gap-1 font-black">
+        <div className="flex items-center gap-1.5 font-black">
           {!imgError ? (
-            <img src={resolvedLogoUrl} alt="Logo" className="h-3.5 w-auto max-h-3.5 object-contain inline-block" />
+            <img src={resolvedLogoUrl} alt="Logo" className="h-4.5 w-auto max-h-4.5 object-contain inline-block" />
           ) : (
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 inline-block" />
+            <ShieldCheck className="w-4 h-4 text-emerald-400 inline-block" />
           )}
           <span>Forward Fact-Checker</span>
         </div>

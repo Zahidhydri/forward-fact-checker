@@ -17,9 +17,9 @@
   ],
   "action": {
     "default_icon": {
-      "16": "public/logo.png",
-      "48": "public/logo.png",
-      "128": "public/logo.png"
+      "16": "public/icon16.png",
+      "48": "public/icon48.png",
+      "128": "public/icon128.png"
     },
     "default_title": "Forward Fact-Checker"
   },
@@ -32,15 +32,21 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://web.whatsapp.com/*"],
-      "js": ["src/content/content.js"],
-      "css": ["src/content/content.css"],
+      "matches": [
+        "https://web.whatsapp.com/*"
+      ],
+      "js": [
+        "src/content/content.js"
+      ],
+      "css": [
+        "src/content/content.css"
+      ],
       "run_at": "document_idle"
     }
   ],
   "icons": {
-    "16": "public/logo.png",
-    "48": "public/logo.png",
-    "128": "public/logo.png"
+    "16": "public/icon16.png",
+    "48": "public/icon48.png",
+    "128": "public/icon128.png"
   }
 }
