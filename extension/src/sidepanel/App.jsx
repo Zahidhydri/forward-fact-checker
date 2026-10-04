@@ -22,7 +22,6 @@ import { ReplyGenerator } from './components/ReplyGenerator';
 import { ScamCounter } from './components/ScamCounter';
 import { streamVerification } from '../lib/sse-parser';
 import { ACCENT_THEMES, getAccentStyles } from './theme';
-import logoUrl from '../../public/logo.png';
 
 const DEFAULT_BACKEND_URL = "https://forward-fact-checker.vercel.app/verify";
 
@@ -70,7 +69,7 @@ export default function App() {
   // Fallback logo URL for Chrome extension environment
   const resolvedLogoUrl = typeof chrome !== 'undefined' && chrome.runtime?.getURL 
     ? chrome.runtime.getURL('public/logo.png') 
-    : logoUrl;
+    : '/logo.png';
 
   // Synchronize Theme Mode & Accent Color on Root HTML Document
   useEffect(() => {
@@ -387,28 +386,26 @@ export default function App() {
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* Header App Bar */}
-      <header className={`flex items-center justify-between pb-3.5 mb-3.5 border-b ${
+      {/* Header App Bar */}
+      <header className={`flex items-center justify-between pb-2 mb-3 border-b ${
         isDark ? 'border-slate-800/80' : 'border-slate-200'
       }`}>
-        <div className="flex items-center gap-3">
-          <div className="h-11 px-2.5 rounded-2xl flex items-center justify-center bg-slate-900/90 border border-slate-800 shadow-md">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 p-1 rounded-xl flex items-center justify-center bg-slate-900/90 border border-slate-800 shadow-sm flex-shrink-0">
             {!imgError ? (
               <img 
                 src={resolvedLogoUrl} 
                 alt="Forward Fact-Checker Logo" 
-                className="h-9 w-auto max-h-9 object-contain"
+                className="h-full w-auto object-contain"
                 onError={() => setImgError(true)}
               />
             ) : (
-              <ShieldCheck className="w-6 h-6 text-emerald-400" />
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
             )}
           </div>
-          <div>
-            <h1 className="font-black text-base tracking-tight leading-none">Fact Checker</h1>
-            <p className={`text-[11px] font-bold mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Automated Claim Verification
-            </p>
-          </div>
+          <h1 className="font-black text-sm tracking-tight leading-none">
+            Forward Fact-Checker
+          </h1>
         </div>
 
         <div className="flex items-center gap-2.5">
