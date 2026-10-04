@@ -289,20 +289,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Active Language Switcher Button */}
-          <button
-            type="button"
-            onClick={() => {
-              const nextLang = selectedLang === 'en' ? 'hi' : selectedLang === 'hi' ? 'mr' : 'en';
-              setSelectedLang(nextLang);
-            }}
-            className={`px-2 py-1 rounded-xl text-[10px] font-black border transition flex items-center gap-1 ${
-              isDark ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-slate-700' : 'bg-white border-slate-200 text-slate-800 shadow-sm'
-            }`}
-            title="Click to toggle language (English / Hindi / Marathi)"
-          >
-            <span>{selectedLang === 'hi' ? '🇮🇳 HI' : selectedLang === 'mr' ? '🚩 MR' : '🌐 EN'}</span>
-          </button>
 
           {/* Material You Toggle Switch */}
           <button

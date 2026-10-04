@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Copy, 
   Check, 
   MessageSquare, 
-  Edit3
+  Edit3,
+  Loader2
 } from 'lucide-react';
+import { translateText } from '../../lib/translator';
 
 const LANGUAGES = [
   { id: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
@@ -24,6 +26,33 @@ export function ReplyGenerator({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [customReplies, setCustomReplies] = useState({});
+  const [translatedTexts, setTranslatedTexts] = useState({ hi: '', mr: '' });
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  // Automatically fetch genuine translation for Hindi and Marathi
+  useEffect(() => {
+    const rawExplanation = verdict?.explanation || verdict?.card_text || card?.en || '';
+    if (!rawExplanation) return;
+
+    let isMounted = true;
+    setIsTranslating(true);
+
+    Promise.all([
+      translateText(rawExplanation, 'hi'),
+      translateText(rawExplanation, 'mr')
+    ]).then(([hiTrans, mrTrans]) => {
+      if (isMounted) {
+        setTranslatedTexts({ hi: hiTrans, mr: mrTrans });
+        setIsTranslating(false);
+      }
+    }).catch(() => {
+      if (isMounted) setIsTranslating(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [verdict?.explanation, verdict?.card_text, card?.en]);
 
   if (!card && !verdict) return null;
 
@@ -31,7 +60,7 @@ export function ReplyGenerator({
     hi: card?.hi || (
       `⚠️ *सावधान! यह दावा गलत/फेक है* ⚠️\n\n` +
       `इस मैसेज की AI फैक्ट-चेक द्वारा जांच की गई है।\n` +
-      `📌 *सच्चाई:* ${verdict?.explanation || 'यह दावा भ्रामक है और किसी भी आधिकारिक संस्था द्वारा जारी नहीं किया गया है।'}\n\n` +
+      `📌 *सच्चाई:* ${translatedTexts.hi || verdict?.explanation || 'यह दावा भ्रामक है और किसी भी आधिकारिक संस्था द्वारा जारी नहीं किया गया है।'}\n\n` +
       `🛡️ कृपया इसे बिना पुष्टि किए किसी भी ग्रुप में फॉरवर्ड न करें।\n` +
       `_फैक्ट-चेक द्वारा सत्यापित - Forward Fact-Checker Agent_`
     ),
@@ -44,16 +73,15 @@ export function ReplyGenerator({
     ),
     mr: card?.mr || (
       `⚠️ *सावधान! हा दावा खोटा/दिशाभूल करणारा आहे* ⚠️\n\n` +
-      `या संदेशाची AI फॅक्ट-चेकर द्वारे पडताळणी करण्यात आली आहे.\n` +
-      `📌 *वस्तुस्थिती:* ${verdict?.explanation || 'हा दावा दिशाभूल करणारा असून अधिकृत सूत्रांनी याला दुजोरा दिलेला नाही.'}\n\n` +
-      `🛡️ कृपया हा मेसेज पुढे फॉरवर्ड करू नका.\n` +
+      `या संदेशाची AI फॅक्ट-चेकर द्वारे पडताळणी करण्यात आली आहे。\n` +
+      `📌 *वस्तुस्थिती:* ${translatedTexts.mr || verdict?.explanation || 'हा दावा दिशाभूल करणारा असून अधिकृत सूत्रांनी याला दुजोरा दिलेला नाही.'}\n\n` +
+      `🛡️ कृपया हा मेसेज पुढे फॉरवर्ड करू नका。\n` +
       `_फॅक्ट-चेक द्वारे सत्यापित - Forward Fact-Checker Agent_`
     ),
     hinglish: card?.hinglish || (
       `⚠️ *Caution! Yeh Forward Fake/Misleading Hai* ⚠️\n\n` +
       `Is message ko AI Fact-Checker ne verify kiya hai.\n` +
-      `📌 *Sach:* ${verdict?.explanation || 'Yeh claim fabricated hai aur official sources ne ise debunk kiya hai.'}\n\n` +
-      `🛡️ Please ise bina verify kiye aage forward mat kijiye.\n` +
+      `📌 *Sach:* ${translatedTexts.hi || verdict?.explanation || 'Yeh claim fabricated hai aur official sources ne ise debunk kiya hai.'}\n\n` +      `🛡️ Please ise bina verify kiye aage forward mat kijiye.\n` +
       `_Verified via Forward Fact-Checker Agent_`
     )
   };
@@ -140,7 +168,12 @@ export function ReplyGenerator({
       <div className={`p-3.5 rounded-2xl border mb-3.5 ${
         isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
       }`}>
-        {isEditing ? (
+        {isTranslating && (selectedLang === 'hi' || selectedLang === 'mr') && !customReplies[selectedLang] ? (
+          <div className="flex items-center justify-center py-6 gap-2.5 text-xs font-bold text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+            <span>Translating to genuine {selectedLang === 'mr' ? 'मराठी' : 'हिन्दी'}...</span>
+          </div>
+        ) : isEditing ? (
           <textarea
             value={activeText}
             onChange={handleTextChange}
