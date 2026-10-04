@@ -183,7 +183,7 @@ function triggerVerificationForButton(btn, row) {
   }
 
   lastClickedButton = btn;
-  btn.setAttribute("data-ffc-checked-text", messageText);
+  btn.setAttribute("data-ffc-checked-text", messageText || "Image Claim");
   btn.classList.add("ffc-btn-checking");
   btn.innerHTML = `${ICONS.spinner}<span>Checking...</span>`;
 
@@ -224,19 +224,20 @@ function triggerVerificationForButton(btn, row) {
 function injectVerifyButtons() {
   if (!isAutoCheckEnabled) return;
 
+  // Specific message row selectors in WhatsApp Web (avoiding top-level container divs)
   const messageRows = document.querySelectorAll(
     `div[data-testid="msg-container"], ` +
-    `div[role="row"], ` +
-    `.message-in, ` +
-    `.message-out, ` +
-    `div[data-id]`
+    `div.message-in, ` +
+    `div.message-out, ` +
+    `div[data-id^="true_"], ` +
+    `div[data-id^="false_"]`
   );
 
   let autoCheckDelay = 300;
 
   messageRows.forEach((row) => {
-    // Avoid double buttons in same container
-    if (row.querySelector(`.${INJECT_BUTTON_CLASS}`)) {
+    // Avoid double buttons in same message row or child
+    if (row.querySelector(`.${INJECT_BUTTON_CLASS}`) || row.classList.contains(INJECT_BUTTON_CLASS)) {
       return;
     }
 
@@ -295,11 +296,22 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       const verdict = request.verdict;
       const status = (verdict.status || verdict.label || 'UNVERIFIED').toUpperCase();
 
-      // Find matching button: either lastClickedButton or matching data-ffc-checked-text
-      let targetBtn = lastClickedButton;
-      if (!targetBtn && request.text) {
-        const snippet = request.text.slice(0, 30);
-        targetBtn = document.querySelector(`button[data-ffc-checked-text*="${CSS.escape(snippet)}"]`);
+      let targetBtn = null;
+
+      // 1. Try to match by text snippet
+      if (request.text) {
+        const textKey = request.text.trim();
+        const snippet = textKey.slice(0, 25);
+        const allBtns = Array.from(document.querySelectorAll(`.${INJECT_BUTTON_CLASS}`));
+        targetBtn = allBtns.find(b => {
+          const attr = b.getAttribute("data-ffc-checked-text") || "";
+          return attr.includes(snippet) || snippet.includes(attr.slice(0, 15));
+        });
+      }
+
+      // 2. Fallback to lastClickedButton
+      if (!targetBtn) {
+        targetBtn = lastClickedButton;
       }
 
       if (targetBtn) {
