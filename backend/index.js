@@ -64,6 +64,26 @@ function sendSSE(res, eventName, data) {
 }
 
 /**
+ * Strip markdown symbols and trim a snippet to maxLen characters.
+ */
+function cleanSnippet(raw, maxLen = 200) {
+  return (raw || '')
+    .replace(/[#*_~`>|\[\]]/g, '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, maxLen);
+}
+
+/**
+ * Extract URLs from a string.
+ */
+function extractUrls(text) {
+  const re = /https?:\/\/[^\s"'<>)\]]+/gi;
+  return (text.match(re) || []);
+}
+
+/**
  * POST /verify - Stream verification events via Server-Sent Events (SSE)
  * Events emitted:
  *  - 'step': {"stage": "...", "message": "..."} (5 stages)
@@ -100,8 +120,22 @@ app.post('/verify', (req, res) => {
     return;
   }
 
+  // ── Validation ──────────────────────────────────────────────
   const { text, claim, message, query } = req.body || {};
-  const claimText = text || claim || message || query || 'Forwarded message content';
+  const rawText = text || claim || message || query || '';
+
+  if (!rawText.trim()) {
+    sendSSE(res, 'error', {
+      error: 'ValidationError',
+      message: 'text is required',
+      code: 'VALIDATION_ERROR'
+    });
+    res.end();
+    return;
+  }
+
+  const claimText = rawText.slice(0, 2000);
+
   const bodyLang = req.body && req.body.lang;
   const queryLang = req.query && req.query.lang;
   const lang = (bodyLang === 'hi' || queryLang === 'hi') ? 'hi' : 'en';
@@ -178,7 +212,7 @@ app.post('/verify', (req, res) => {
   }
 
   // ──────────────────────────────────────────────────────────
-  // REAL FLOW – Tavily search → Gemini analysis → verdict
+  // REAL FLOW
   // ──────────────────────────────────────────────────────────
   (async () => {
     try {
@@ -188,38 +222,115 @@ app.post('/verify', (req, res) => {
         message: 'Extracting key factual claims from the forwarded message...'
       });
 
-      // (2) searching – Tavily API
+      // (2) searching – Tavily + Google Fact Check + Safe Browsing in parallel
       sendSSE(res, 'step', {
         stage: 'searching',
-        message: 'Searching the web for relevant sources via Tavily...'
+        message: 'Searching the web, fact-check databases, and threat feeds...'
       });
 
       const tavilyKey = process.env.TAVILY_API_KEY;
       if (!tavilyKey) throw new Error('TAVILY_API_KEY is not configured');
 
-      const tavilyResp = await fetch('https://api.tavily.com/search', {
+      // ── Tavily search ──
+      const tavilyPromise = fetch('https://api.tavily.com/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           api_key: tavilyKey,
-          query: claimText,
+          query: 'fact check scam: ' + claimText.slice(0, 300),
           max_results: 5
         })
+      }).then(async (r) => {
+        if (!r.ok) {
+          const errBody = await r.text().catch(() => '');
+          throw new Error(`Tavily API error (${r.status}): ${errBody.slice(0, 200)}`);
+        }
+        return r.json();
       });
 
-      if (!tavilyResp.ok) {
-        const errBody = await tavilyResp.text().catch(() => '');
-        throw new Error(`Tavily API error (${tavilyResp.status}): ${errBody.slice(0, 200)}`);
-      }
+      // ── Google Fact Check lookup (best-effort) ──
+      const factCheckPromise = (async () => {
+        const fcKey = process.env.GOOGLE_FACTCHECK_KEY;
+        if (!fcKey) return [];
+        try {
+          const q = encodeURIComponent(claimText.slice(0, 200));
+          const fcResp = await fetch(
+            `https://factchecktools.googleapis.com/v1alpha1/claims:search?query=${q}&pageSize=3&key=${fcKey}`
+          );
+          if (!fcResp.ok) return [];
+          const fcData = await fcResp.json();
+          return (fcData.claims || []).map(c => {
+            const review = (c.claimReview || [])[0] || {};
+            return {
+              claim: c.text || '',
+              rating: review.textualRating || '',
+              publisher: (review.publisher || {}).name || '',
+              url: review.url || ''
+            };
+          });
+        } catch (_) {
+          return [];
+        }
+      })();
 
-      const tavilyData = await tavilyResp.json();
-      const sources = (tavilyData.results || []).map(r => ({
+      // ── Safe Browsing URL check (best-effort) ──
+      const safeBrowsingPromise = (async () => {
+        const sbKey = process.env.SAFE_BROWSING_KEY;
+        if (!sbKey) return [];
+        try {
+          const urls = extractUrls(claimText);
+          if (urls.length === 0) return [];
+          const sbResp = await fetch(
+            `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${sbKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                client: { clientId: 'forward-fact-checker', clientVersion: '1.0.0' },
+                threatInfo: {
+                  threatTypes: ['MALWARE', 'SOCIAL_ENGINEERING', 'UNWANTED_SOFTWARE'],
+                  platformTypes: ['ANY_PLATFORM'],
+                  threatEntryTypes: ['URL'],
+                  threatEntries: urls.map(u => ({ url: u }))
+                }
+              })
+            }
+          );
+          if (!sbResp.ok) return [];
+          const sbData = await sbResp.json();
+          return sbData.matches || [];
+        } catch (_) {
+          return [];
+        }
+      })();
+
+      // Run all three in parallel
+      const [tavilyData, factCheckResults, safeBrowsingMatches] = await Promise.all([
+        tavilyPromise,
+        factCheckPromise,
+        safeBrowsingPromise
+      ]);
+
+      // Build sources list: fact-check results first, then Tavily results
+      const fcSources = factCheckResults
+        .filter(fc => fc.url)
+        .map(fc => ({
+          title: `${fc.publisher}: ${fc.rating}`.trim(),
+          url: fc.url,
+          snippet: cleanSnippet(fc.claim)
+        }));
+
+      const tavilySources = (tavilyData.results || []).map(r => ({
         title: r.title || '',
         url: r.url || '',
-        snippet: (r.content || '').slice(0, 300)
+        snippet: cleanSnippet(r.content)
       }));
 
-      if (finalized) return; // client disconnected mid-flow
+      const sources = [...fcSources, ...tavilySources];
+
+      const urlsFlagged = safeBrowsingMatches.length > 0;
+
+      if (finalized) return;
 
       // (3) reading
       sendSSE(res, 'step', {
@@ -239,16 +350,29 @@ app.post('/verify', (req, res) => {
       if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured');
 
       const langName = lang === 'hi' ? 'Hindi' : 'English';
-      const geminiPrompt = `You are a rigorous fact-checker for viral forwarded messages.
+
+      // Build Safe Browsing context for the prompt
+      const sbContext = urlsFlagged
+        ? '\n⚠️ SAFE BROWSING ALERT: One or more URLs in the message were flagged as MALWARE, SOCIAL_ENGINEERING, or UNWANTED_SOFTWARE. The label MUST be SCAM.'
+        : '\nSafe Browsing: No URLs in the message were flagged as threats.';
+
+      // Build Fact Check context
+      const fcContext = factCheckResults.length > 0
+        ? `\nOFFICIAL FACT-CHECK RESULTS:\n${JSON.stringify(factCheckResults, null, 2)}`
+        : '\nNo official fact-check results found.';
+
+      const geminiPrompt = `You are a rigorous fact-checker for viral forwarded messages (especially WhatsApp forwards common in India).
 
 CLAIM TO VERIFY:
 "${claimText}"
 
-SOURCES (use ONLY these – never fabricate or invent URLs):
+WEB SOURCES (use ONLY these – never fabricate or invent URLs):
 ${JSON.stringify(sources, null, 2)}
+${fcContext}
+${sbContext}
 
 TASK:
-Analyze the claim against the sources above and produce a verification verdict as strict JSON matching this exact schema:
+Analyze the claim against ALL evidence above and produce a verification verdict as strict JSON matching this exact schema:
 
 {
   "label": "<one of: TRUE, FALSE, MISLEADING, SCAM, SATIRE, UNVERIFIED>",
@@ -258,7 +382,10 @@ Analyze the claim against the sources above and produce a verification verdict a
 }
 
 RULES:
-- label MUST be UPPERCASE. If the sources do not clearly support any verdict, use "UNVERIFIED".
+- label MUST be UPPERCASE.
+- If any URL was flagged by Safe Browsing, or the message asks for OTP, KYC details, clicking unknown links, or sending money, the label MUST be SCAM.
+- Official company pages that merely show normal plans, offers, or product info do NOT prove a forwarded claim true. A company website existing is not evidence that an unsolicited viral offer from them is genuine.
+- If the sources do not clearly and directly support a verdict, use "UNVERIFIED". Err on the side of UNVERIFIED when evidence is unclear or ambiguous.
 - confidence: how certain you are (0 = no idea, 1 = certain).
 - claims: list the key factual claims you extracted from the message (strings).
 - card_text: write in ${langName}. Keep it friendly, light, and easy to share – BUT if label is SCAM, be serious and warn clearly. Use emojis sparingly.
@@ -316,6 +443,9 @@ RULES:
       let label = (parsed.label || 'UNVERIFIED').toUpperCase();
       if (!validLabels.includes(label)) label = 'UNVERIFIED';
 
+      // Force SCAM if Safe Browsing flagged any URL
+      if (urlsFlagged) label = 'SCAM';
+
       const verdict = {
         label,
         confidence: typeof parsed.confidence === 'number'
@@ -324,7 +454,11 @@ RULES:
         claims: Array.isArray(parsed.claims)
           ? parsed.claims.map(c => String(c))
           : [claimText],
-        sources,
+        sources: sources.map(s => ({
+          title: s.title,
+          url: s.url,
+          snippet: cleanSnippet(s.snippet)
+        })),
         card_text: typeof parsed.card_text === 'string'
           ? parsed.card_text
           : ''
