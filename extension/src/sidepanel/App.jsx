@@ -18,7 +18,9 @@ import {
   Sparkles,
   Puzzle,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  Download,
+  Copy
 } from 'lucide-react';
 import { AgentSteps } from './components/AgentSteps';
 import { VerdictCard } from './components/VerdictCard';
@@ -52,6 +54,7 @@ export default function App() {
   });
   const [showSettings, setShowSettings] = useState(false);
   const [showExtensionGuide, setShowExtensionGuide] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   // User Customization Settings: Light/Dark Mode & Accent Color
@@ -76,6 +79,28 @@ export default function App() {
   const abortControllerRef = useRef(null);
   const isDark = themeMode === 'dark';
   const activeAccent = getAccentStyles(accentColor);
+
+  const handleOpenOrCopyExtensionsUrl = () => {
+    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
+      try {
+        chrome.tabs.create({ url: 'chrome://extensions' });
+      } catch (e) {
+        // Fallback
+      }
+    } else {
+      try {
+        window.open('chrome://extensions', '_blank');
+      } catch (e) {
+        // Browsers restrict navigation to chrome://
+      }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText('chrome://extensions').catch(() => {});
+    }
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2500);
+  };
 
   // Fallback logo URL for Chrome extension environment
   const resolvedLogoUrl = typeof chrome !== 'undefined' && chrome.runtime?.getURL 
@@ -297,17 +322,18 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Extension Setup Guide Button (Desktop / Web view) */}
+          {/* Extension Setup Guide Button */}
           <button
             type="button"
             onClick={() => setShowExtensionGuide(true)}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black transition ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-black transition ${
               isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
             }`}
             title="How to run as Chrome Extension"
           >
             <Puzzle className="w-3.5 h-3.5 text-blue-400" />
-            <span>Extension Setup</span>
+            <span className="hidden sm:inline">Extension Setup</span>
+            <span className="sm:hidden">Install</span>
           </button>
 
           {/* Material You Toggle Switch */}
@@ -576,20 +602,44 @@ export default function App() {
             </p>
 
             <div className="space-y-2.5">
+              {/* Step 1: Open chrome://extensions */}
               <div className={`p-3 rounded-2xl border flex items-start gap-3 ${
                 isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
                 <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
                   1
                 </span>
-                <div className="text-xs">
+                <div className="text-xs flex-1">
                   <p className="font-black">Open Extensions in Chrome</p>
-                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Navigate to <code className="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300">chrome://extensions</code> in Google Chrome.
+                  <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Navigate to{' '}
+                    <button
+                      type="button"
+                      onClick={handleOpenOrCopyExtensionsUrl}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-blue-950/80 hover:bg-blue-900/90 text-blue-300 border border-blue-800/80 font-mono text-[11px] font-bold transition cursor-pointer group"
+                      title="Click to copy & open chrome://extensions"
+                    >
+                      <span>chrome://extensions</span>
+                      {copiedUrl ? (
+                        <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-blue-400 group-hover:scale-110 transition" />
+                      )}
+                    </button>
                   </p>
+                  {copiedUrl ? (
+                    <span className="inline-block mt-1 text-[10px] font-bold text-emerald-400 animate-fade-in">
+                      ✓ Copied to clipboard! Paste into your browser address bar.
+                    </span>
+                  ) : (
+                    <span className="inline-block mt-0.5 text-[10px] text-slate-400">
+                      (Click to copy URL or open in new tab)
+                    </span>
+                  )}
                 </div>
               </div>
 
+              {/* Step 2: Enable Developer Mode */}
               <div className={`p-3 rounded-2xl border flex items-start gap-3 ${
                 isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
@@ -604,20 +654,44 @@ export default function App() {
                 </div>
               </div>
 
-              <div className={`p-3 rounded-2xl border flex items-start gap-3 ${
+              {/* Step 3: Download & Load Unpacked */}
+              <div className={`p-3 rounded-2xl border flex flex-col gap-2.5 ${
                 isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
-                <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                  3
-                </span>
-                <div className="text-xs">
-                  <p className="font-black">Click "Load Unpacked"</p>
-                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Select the repository's <code className="px-1.5 py-0.5 rounded bg-slate-800 text-emerald-300">extension/dist</code> folder.
+                <div className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                    3
+                  </span>
+                  <div className="text-xs flex-1">
+                    <p className="font-black">Download & Click "Load Unpacked"</p>
+                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Download the pre-packaged extension zip below, extract it, then click <strong>Load Unpacked</strong> and select the extracted folder (or repo's <code className="px-1.5 py-0.5 rounded bg-slate-800 text-emerald-300 font-mono">extension/dist</code>).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Prominent One-Click Download Button */}
+                <div className="pl-9 pr-1">
+                  <a
+                    href="/forward-fact-checker-extension.zip"
+                    download="forward-fact-checker-extension.zip"
+                    className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black text-xs shadow-md shadow-emerald-950/30 transition transform active:scale-98 group no-underline"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Download className="w-4 h-4 flex-shrink-0 group-hover:-translate-y-0.5 transition-transform" />
+                      <span className="tracking-wide">Download Extension (ZIP)</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-black/30 text-emerald-100">
+                      dist.zip • Ready
+                    </span>
+                  </a>
+                  <p className={`text-[10px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    💡 <em>Extract the ZIP, then choose that folder in Chrome's "Load unpacked" dialog.</em>
                   </p>
                 </div>
               </div>
 
+              {/* Step 4: Open WhatsApp Web */}
               <div className={`p-3 rounded-2xl border flex items-start gap-3 ${
                 isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
@@ -627,7 +701,7 @@ export default function App() {
                 <div className="text-xs">
                   <p className="font-black">Open WhatsApp Web</p>
                   <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Visit <code className="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300">web.whatsapp.com</code> — <strong>"Verify Claim"</strong> badges will appear automatically on forwarded messages!
+                    Visit <code className="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 font-mono">web.whatsapp.com</code> — <strong>"Verify Claim"</strong> badges will appear automatically on forwarded messages!
                   </p>
                 </div>
               </div>
