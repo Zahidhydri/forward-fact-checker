@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AlertTriangle, 
   XCircle, 
@@ -7,8 +7,10 @@ import {
   ExternalLink, 
   Sparkles,
   ShieldCheck,
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
+import { translateText } from '../../lib/translator';
 
 const VERDICT_CONFIG = {
   SCAM: {
@@ -79,16 +81,86 @@ const VERDICT_CONFIG = {
   }
 };
 
-export function VerdictCard({ verdict, isDark = true }) {
-  if (!verdict) return null;
+export function VerdictCard({ verdict, isDark = true, selectedLang = 'en' }) {
+  const [translatedData, setTranslatedData] = useState({
+    headline: '',
+    explanation: '',
+    tagline: '',
+    evidence: []
+  });
+  const [isTranslating, setIsTranslating] = useState(false);
 
-  const statusKey = (verdict.status || 'UNVERIFIED').toUpperCase();
+  const statusKey = (verdict?.status || 'UNVERIFIED').toUpperCase();
   const config = VERDICT_CONFIG[statusKey] || VERDICT_CONFIG.UNVERIFIED;
   const IconComponent = config.icon;
+
+  useEffect(() => {
+    if (!verdict) return;
+    if (!selectedLang || selectedLang === 'en') {
+      setTranslatedData({ headline: '', explanation: '', tagline: '', evidence: [] });
+      setIsTranslating(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsTranslating(true);
+
+    const headlineToTrans = verdict.headline || config.title;
+    const explanationToTrans = verdict.explanation || verdict.summary || '';
+    const tagline = config.tagline || '';
+    const evidenceList = verdict.evidence || [];
+
+    const evidencePromises = evidenceList.map(item => {
+      const text = typeof item === 'string' ? item : (item.point || item.summary || '');
+      return text ? translateText(text, selectedLang) : Promise.resolve('');
+    });
+
+    Promise.all([
+      translateText(headlineToTrans, selectedLang),
+      translateText(explanationToTrans, selectedLang),
+      tagline ? translateText(tagline, selectedLang) : Promise.resolve(''),
+      Promise.all(evidencePromises)
+    ]).then(([transHeadline, transExplanation, transTagline, transEvidence]) => {
+      if (isMounted) {
+        setTranslatedData({
+          headline: transHeadline,
+          explanation: transExplanation,
+          tagline: transTagline,
+          evidence: transEvidence
+        });
+        setIsTranslating(false);
+      }
+    }).catch((err) => {
+      console.warn('Verdict translation error:', err);
+      if (isMounted) setIsTranslating(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [verdict?.headline, verdict?.explanation, verdict?.summary, verdict?.evidence, selectedLang, config.title, config.tagline]);
+
+  if (!verdict) return null;
 
   const confidencePercent = Math.round(
     (verdict.confidence !== undefined ? verdict.confidence : 0.95) * (verdict.confidence <= 1 ? 100 : 1)
   );
+
+  const displayHeadline = (selectedLang !== 'en' && translatedData.headline) 
+    ? translatedData.headline 
+    : (verdict.headline || config.title);
+
+  const displayExplanation = (selectedLang !== 'en' && translatedData.explanation)
+    ? translatedData.explanation
+    : (verdict.explanation || verdict.summary);
+
+  const displayTagline = (selectedLang !== 'en' && translatedData.tagline)
+    ? translatedData.tagline
+    : config.tagline;
+
+  const displayEvidence = (selectedLang !== 'en' && translatedData.evidence && translatedData.evidence.length > 0)
+    ? translatedData.evidence
+    : (verdict.evidence || []);
 
   return (
     <div className={`compose-card p-4.5 mb-4 border ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
@@ -101,7 +173,7 @@ export function VerdictCard({ verdict, isDark = true }) {
             <IconComponent className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className={`text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full ${config.badgeBg}`}>
                 {config.badge}
               </span>
@@ -112,9 +184,21 @@ export function VerdictCard({ verdict, isDark = true }) {
                   Risk: {verdict.risk_level}
                 </span>
               )}
+              {selectedLang !== 'en' && (
+                isTranslating ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-400">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Translating...</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                    {selectedLang === 'hi' ? '🇮🇳 हिन्दी' : '🚩 मराठी'}
+                  </span>
+                )
+              )}
             </div>
             <h3 className={`text-sm font-black leading-snug ${isDark ? 'text-white' : 'text-slate-950'}`}>
-              {verdict.headline || config.title}
+              {displayHeadline}
             </h3>
           </div>
         </div>
@@ -133,26 +217,26 @@ export function VerdictCard({ verdict, isDark = true }) {
       <div className={`p-3.5 rounded-2xl border text-xs font-medium leading-relaxed mb-3.5 ${
         isDark ? 'bg-slate-950/70 border-slate-800/80 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
       }`}>
-        <p>{verdict.explanation || verdict.summary}</p>
+        <p>{displayExplanation}</p>
         
-        {config.tagline && (
+        {displayTagline && (
           <div className={`mt-2.5 pt-2.5 border-t text-[11px] font-bold flex items-center gap-1.5 ${
             isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-600'
           }`}>
             <Info className="w-4 h-4 flex-shrink-0 text-slate-400" />
-            <span>{config.tagline}</span>
+            <span>{displayTagline}</span>
           </div>
         )}
       </div>
 
       {/* Key Evidence */}
-      {verdict.evidence && verdict.evidence.length > 0 && (
+      {displayEvidence && displayEvidence.length > 0 && (
         <div className="mb-3.5">
           <h4 className={`text-[11px] font-black uppercase tracking-wider mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            Key Factual Evidence:
+            {selectedLang === 'hi' ? 'मुख्य तथ्यात्मक प्रमाण:' : selectedLang === 'mr' ? 'प्रमुख तथ्य पुरावे:' : 'Key Factual Evidence:'}
           </h4>
           <div className="space-y-1.5">
-            {verdict.evidence.map((item, idx) => (
+            {displayEvidence.map((item, idx) => (
               <div 
                 key={idx} 
                 className={`p-2.5 rounded-xl border text-xs font-medium flex items-start gap-2.5 ${
