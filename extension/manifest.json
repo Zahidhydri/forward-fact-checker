@@ -17,9 +17,9 @@
   ],
   "action": {
     "default_icon": {
-      "16": "public/icon16.png",
-      "48": "public/icon48.png",
-      "128": "public/icon128.png"
+      "16": "public/logo.png",
+      "48": "public/logo.png",
+      "128": "public/logo.png"
     },
     "default_title": "Forward Fact-Checker"
   },
@@ -39,8 +39,8 @@
     }
   ],
   "icons": {
-    "16": "public/icon16.png",
-    "48": "public/icon48.png",
-    "128": "public/icon128.png"
+    "16": "public/logo.png",
+    "48": "public/logo.png",
+    "128": "public/logo.png"
   }
 }
