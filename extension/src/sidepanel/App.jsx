@@ -699,11 +699,16 @@ export default function App() {
       }`}>
         <div className="flex items-center gap-1.5 font-black">
           {!imgError ? (
-            <img src={resolvedLogoUrl} alt="Logo" className="h-4.5 w-auto max-h-4.5 object-contain inline-block" />
+            <img 
+              src={resolvedLogoUrl} 
+              alt="Logo" 
+              className="h-3.5 w-auto object-contain inline-block flex-shrink-0" 
+              style={{ height: '14px', width: 'auto' }}
+            />
           ) : (
-            <ShieldCheck className="w-4 h-4 text-emerald-400 inline-block" />
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 inline-block flex-shrink-0" />
           )}
-          <span>Forward Fact-Checker</span>
+          <span className="text-[11px]">Forward Fact-Checker</span>
         </div>
         <span className="font-black" style={{ color: activeAccent.primary }}>
           Built by Fardeen & Zahid
