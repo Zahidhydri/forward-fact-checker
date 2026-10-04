@@ -1,0 +1,278 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Copy, 
+  Check, 
+  MessageSquare, 
+  Edit3,
+  Loader2
+} from 'lucide-react';
+import { translateText } from '../../lib/translator';
+
+const LANGUAGES = [
+  { id: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
+  { id: 'en', label: 'English', flag: '🌐' },
+  { id: 'mr', label: 'मराठी', flag: '🚩' },
+  { id: 'hinglish', label: 'Hinglish', flag: '💬' },
+];
+
+export function ReplyGenerator({ 
+  card = {}, 
+  verdict = {}, 
+  isDark = true, 
+  accent = {}, 
+  selectedLang = 'en', 
+  onSelectLang = () => {} 
+}) {
+  const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [customReplies, setCustomReplies] = useState({});
+  const [translatedTexts, setTranslatedTexts] = useState({ hi: '', mr: '' });
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  // Automatically fetch genuine translation for Hindi and Marathi
+  useEffect(() => {
+    const rawExplanation = verdict?.explanation || verdict?.card_text || card?.en || '';
+    if (!rawExplanation) return;
+
+    let isMounted = true;
+    setIsTranslating(true);
+
+    Promise.all([
+      translateText(rawExplanation, 'hi'),
+      translateText(rawExplanation, 'mr')
+    ]).then(([hiTrans, mrTrans]) => {
+      if (isMounted) {
+        setTranslatedTexts({ hi: hiTrans, mr: mrTrans });
+        setIsTranslating(false);
+      }
+    }).catch(() => {
+      if (isMounted) setIsTranslating(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [verdict?.explanation, verdict?.card_text, card?.en]);
+
+  if (!card && !verdict) return null;
+
+  const hasDevanagari = (str) => /[\u0900-\u097F]/.test(str || '');
+
+  // Determine tone based on verdict status
+  const status = (verdict?.status || 'FAKE').toUpperCase();
+  const isVerified = status === 'VERIFIED';
+  const isScam = status === 'SCAM';
+
+  const defaultReplies = {
+    hi: (card?.hi && hasDevanagari(card.hi) && card.hi !== card.en) ? card.hi : (
+      isVerified ? (
+        `✅ *सत्यापित: यह संदेश सही और प्रामाणिक है* ✅\n\n` +
+        `इस मैसेज की AI फैक्ट-चेक द्वारा आधिकारिक रूप से पुष्टि की गई है।\n` +
+        `📌 *सच्चाई:* ${translatedTexts.hi || verdict?.explanation || 'यह दावा प्रामाणिक स्रोतो के अनुसार सत्य पाया गया है।'}\n\n` +
+        `_फैक्ट-चेक द्वारा सत्यापित - Forward Fact-Checker Agent_`
+      ) : isScam ? (
+        `🚨 *सावधान! यह एक फर्जी स्कैम / धोखाधड़ी है* 🚨\n\n` +
+        `किसी भी लिंक पर क्लिक न करें और न ही निजी जानकारी साझा करें।\n` +
+        `📌 *सच्चाई:* ${translatedTexts.hi || verdict?.explanation || 'यह एक वित्तीय/साइबर धोखाधड़ी का प्रयास है।'}\n\n` +
+        `🛡️ कृपया इसे तुरंत रिपोर्ट करें और किसी भी ग्रुप में फॉरवर्ड न करें।\n` +
+        `_फैक्ट-चेक द्वारा सत्यापित - Forward Fact-Checker Agent_`
+      ) : (
+        `⚠️ *सावधान! यह दावा गलत / फेक है* ⚠️\n\n` +
+        `इस मैसेज की AI फैक्ट-चेक द्वारा जांच की गई है।\n` +
+        `📌 *सच्चाई:* ${translatedTexts.hi || verdict?.explanation || 'यह दावा भ्रामक है और किसी भी आधिकारिक संस्था द्वारा जारी नहीं किया गया है।'}\n\n` +
+        `🛡️ कृपया इसे बिना पुष्टि किए किसी भी ग्रुप में फॉरवर्ड न करें।\n` +
+        `_फैक्ट-चेक द्वारा सत्यापित - Forward Fact-Checker Agent_`
+      )
+    ),
+    en: card?.en || (
+      isVerified ? (
+        `✅ *VERIFIED: This message is AUTHENTIC & ACCURATE* ✅\n\n` +
+        `This forward has been verified against official records.\n` +
+        `📌 *Fact:* ${verdict?.explanation || 'This claim is confirmed to be true and authentic.'}\n\n` +
+        `_Verified via Forward Fact-Checker Agent_`
+      ) : isScam ? (
+        `🚨 *WARNING: High Risk SCAM / FINANCIAL FRAUD* 🚨\n\n` +
+        `Do NOT click links, download files, or share OTPs.\n` +
+        `📌 *Fact:* ${verdict?.explanation || 'This is a dangerous scam attempt reported by authorities.'}\n\n` +
+        `🛡️ Please warn group members and do not forward.\n` +
+        `_Verified via Forward Fact-Checker Agent_`
+      ) : (
+        `⚠️ *WARNING: This message is FAKE/MISLEADING* ⚠️\n\n` +
+        `This forward was verified using the AI Fact-Checking Agent.\n` +
+        `📌 *Fact:* ${verdict?.explanation || 'This claim is unsubstantiated and debunked by official sources.'}\n\n` +
+        `🛡️ Please do not forward this to other groups without verification.\n` +
+        `_Verified via Forward Fact-Checker Agent_`
+      )
+    ),
+    mr: (card?.mr && hasDevanagari(card.mr) && card.mr !== card.en) ? card.mr : (
+      isVerified ? (
+        `✅ *सत्य: हा संदेश खरा आणि अधिकृत आहे* ✅\n\n` +
+        `या संदेशाची AI फॅक्ट-चेकर द्वारे पडताळणी करण्यात आली आहे.\n` +
+        `📌 *वस्तुस्थिती:* ${translatedTexts.mr || verdict?.explanation || 'हा दावा अधिकृत नोंदीनुसार सत्य आढळला आहे.'}\n\n` +
+        `_फॅक्ट-चेक द्वारे सत्यापित - Forward Fact-Checker Agent_`
+      ) : isScam ? (
+        `🚨 *सावधान! ही एक फसवणूक / आर्थिक सायबर स्कॅम आहे* 🚨\n\n` +
+        `कोणत्याही लिंकवर क्लिक करू नका किंवा वैयक्तिक माहिती शेअर करू नका.\n` +
+        `📌 *वस्तुस्थिती:* ${translatedTexts.mr || verdict?.explanation || 'हा एक फसवणुकीचा प्रकार आहे.'}\n\n` +
+        `🛡️ कृपया हा मेसेज पुढे फॉरवर्ड करू नका.\n` +
+        `_फॅक्ट-चेक द्वारे सत्यापित - Forward Fact-Checker Agent_`
+      ) : (
+        `⚠️ *सावधान! हा दावा खोटा / दिशाभूल करणारा आहे* ⚠️\n\n` +
+        `या संदेशाची AI फॅक्ट-चेकर द्वारे पडताळणी करण्यात आली आहे.\n` +
+        `📌 *वस्तुस्थिती:* ${translatedTexts.mr || verdict?.explanation || 'हा दावा दिशाभूल करणारा असून अधिकृत सूत्रांनी याला दुजोरा दिलेला नाही.'}\n\n` +
+        `🛡️ कृपया हा मेसेज पुढे फॉरवर्ड करू नका.\n` +
+        `_फॅक्ट-चेक द्वारे सत्यापित - Forward Fact-Checker Agent_`
+      )
+    ),
+    hinglish: card?.hinglish || (
+      isVerified ? (
+        `✅ *Verified: Yeh Message Sach Aur Authentic Hai* ✅\n\n` +
+        `Is forward ko AI Fact-Checker ne official sources se verify kiya hai.\n` +
+        `📌 *Sach:* ${verdict?.explanation || 'Yeh claim accurate aur verified hai.'}\n\n` +
+        `_Verified via Forward Fact-Checker Agent_`
+      ) : isScam ? (
+        `🚨 *Alert: Dangerous Scam / Online Fraud Alert* 🚨\n\n` +
+        `Kisi bhi unknown link par click mat karein ya OTP share mat karein.\n` +
+        `📌 *Fact:* ${verdict?.explanation || 'Yeh fake fraudulent scam attempt hai.'}\n\n` +
+        `🛡️ Please is message ko aage forward mat kijiye.\n` +
+        `_Verified via Forward Fact-Checker Agent_`
+      ) : (
+        `⚠️ *Caution! Yeh Forward Fake/Misleading Hai* ⚠️\n\n` +
+        `Is message ko AI Fact-Checker ne verify kiya hai.\n` +
+        `📌 *Sach:* ${verdict?.explanation || 'Yeh claim fabricated hai aur official sources ne ise debunk kiya hai.'}\n\n` +
+        `🛡️ Please ise bina verify kiye aage forward mat kijiye.\n` +
+        `_Verified via Forward Fact-Checker Agent_`
+      )
+    )
+  };
+
+  const activeText = customReplies[selectedLang] !== undefined 
+    ? customReplies[selectedLang] 
+    : defaultReplies[selectedLang] || defaultReplies.en;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(activeText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+  };
+
+  const handleTextChange = (e) => {
+    setCustomReplies(prev => ({
+      ...prev,
+      [selectedLang]: e.target.value
+    }));
+  };
+
+  return (
+    <div className={`compose-card p-4.5 mb-4 border ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+      <div className="flex items-center justify-between mb-3.5">
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-2xl flex items-center justify-center ${
+            isDark ? accent.tonalBgDark || 'bg-slate-800' : accent.tonalBgLight || 'bg-slate-100'
+          }`}>
+            <MessageSquare className="w-5 h-5" style={{ color: accent.primary }} />
+          </div>
+          <div>
+            <h3 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+              WhatsApp Debunk Reply
+            </h3>
+            <p className={`text-[11px] font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Multi-lingual chat responses
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsEditing(!isEditing)}
+          className={`px-3 py-1 rounded-full text-[11px] font-extrabold transition border flex items-center gap-1.5 ${
+            isEditing 
+              ? 'bg-emerald-600 text-white border-emerald-600' 
+              : isDark ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+          }`}
+        >
+          <Edit3 className="w-3.5 h-3.5" />
+          <span>{isEditing ? 'Done' : 'Edit'}</span>
+        </button>
+      </div>
+
+      {/* Material 3 Segmented Pills */}
+      <div className={`flex items-center gap-1 p-1 rounded-full border mb-3.5 ${
+        isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+      }`}>
+        {LANGUAGES.map((lang) => {
+          const isSelected = selectedLang === lang.id;
+          return (
+            <button
+              key={lang.id}
+              type="button"
+              onClick={() => onSelectLang(lang.id)}
+              className={`flex-1 py-1.5 px-1.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1 ${
+                isSelected
+                  ? `${accent.bgClass || 'bg-blue-600 text-white'} shadow-sm font-black`
+                  : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className="text-[11px]">{lang.flag}</span>
+              <span className="text-[11px] font-black">{lang.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Text Box Surface */}
+      <div className={`p-3.5 rounded-2xl border mb-3.5 ${
+        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+      }`}>
+        {isTranslating && (selectedLang === 'hi' || selectedLang === 'mr') && !customReplies[selectedLang] ? (
+          <div className="flex items-center justify-center py-6 gap-2.5 text-xs font-bold text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+            <span>Translating to genuine {selectedLang === 'mr' ? 'मराठी' : 'हिन्दी'}...</span>
+          </div>
+        ) : isEditing ? (
+          <textarea
+            value={activeText}
+            onChange={handleTextChange}
+            rows={5}
+            className={`w-full text-xs font-medium p-2.5 rounded-xl border focus:outline-none resize-none font-sans ${
+              isDark ? 'bg-slate-900 text-slate-200 border-slate-700 focus:border-emerald-500' : 'bg-white text-slate-800 border-slate-300 focus:border-emerald-600'
+            }`}
+          />
+        ) : (
+          <div className={`text-xs font-medium whitespace-pre-wrap leading-relaxed select-text ${
+            isDark ? 'text-slate-200' : 'text-slate-800'
+          }`}>
+            {activeText}
+          </div>
+        )}
+      </div>
+
+      {/* Action Button */}
+      <button
+        type="button"
+        onClick={handleCopy}
+        className={`w-full py-3 px-4 rounded-full text-xs font-black transition flex items-center justify-center gap-2 shadow-sm ${
+          copied
+            ? 'bg-emerald-700 text-white'
+            : accent.bgClass || 'bg-emerald-600 hover:bg-emerald-700 text-white'
+        }`}
+      >
+        {copied ? (
+          <>
+            <Check className="w-4 h-4" />
+            <span>Copied to Clipboard!</span>
+          </>
+        ) : (
+          <>
+            <Copy className="w-4 h-4" />
+            <span>Copy Reply for WhatsApp</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+}

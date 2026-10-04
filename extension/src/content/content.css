@@ -1,0 +1,53 @@
+/* Forward Fact-Checker - Injected WhatsApp UI Styles */
+
+.ffc-verify-btn {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(16, 185, 129, 0.3);
+  border-radius: 9999px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 3px 10px;
+  cursor: pointer;
+  z-index: 100;
+  opacity: 0.88;
+  transform: translateY(0);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(4px);
+  user-select: none;
+}
+
+.ffc-verify-btn:hover {
+  opacity: 1;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.ffc-verify-btn:active,
+.ffc-verify-btn.ffc-btn-clicked {
+  transform: scale(0.94);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ffc-shield-icon {
+  display: inline-block;
+  vertical-align: middle;
+  stroke: #ffffff;
+}
+
+/* Ensure message bubble container accommodates absolute button */
+div[data-testid="msg-container"],
+.message-in,
+.message-out {
+  position: relative;
+}
