@@ -1,20 +1,22 @@
 /**
  * Forward Fact-Checker - WhatsApp Web Content Script
- * Observes WhatsApp Web chat stream, injects AI verification buttons, and handles auto-scanning.
+ * Injects instant "Check Claim" buttons on WhatsApp Web message bubbles to transfer text into Sidepanel.
  */
 
 const INJECT_BUTTON_CLASS = "ffc-verify-btn";
 const PROCESSED_ATTR = "data-ffc-processed";
 const AUTO_CHECKED_ATTR = "data-ffc-auto-checked";
+
+// Auto check is ON by default
 let isAutoCheckEnabled = true;
 
 // Track button that was recently clicked for quick badge update
 let lastClickedButton = null;
 
-// Track safety timeouts for active checking buttons to prevent infinite loading
+// Track safety timeouts for active checking buttons
 const buttonSafetyTimeouts = new WeakMap();
 
-// Check auto-check status from chrome storage
+// Sync auto-check status from chrome storage
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
   chrome.storage.local.get(['autoCheckEnabled'], (res) => {
     if (res && res.autoCheckEnabled === false) {
@@ -25,11 +27,6 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.autoCheckEnabled) {
       isAutoCheckEnabled = changes.autoCheckEnabled.newValue !== false;
-      if (!isAutoCheckEnabled) {
-        document.querySelectorAll(`.${INJECT_BUTTON_CLASS}`).forEach(el => el.remove());
-      } else {
-        injectVerifyButtons();
-      }
     }
   });
 }
@@ -44,72 +41,55 @@ function isSystemNoise(text) {
   // System labels
   if (/^(forwarded|forwarded many times|edited|read|delivered|today|yesterday)$/i.test(t)) return true;
   // Extension own button text
-  if (/^(check claim|verify|checking\.\.\.|fact-check|scam \/ fake|misleading|verified true|unverified)$/i.test(t)) return true;
+  if (/^(check claim|verify|checking\.\.\.|sent to panel|fact-check|scam \/ fake|misleading|verified true|unverified|no claim found)$/i.test(t)) return true;
   return false;
 }
 
 function cleanWhatsAppText(text) {
   if (!text) return "";
   let cleaned = text.trim();
+  // Remove extension button text if present inside string
+  cleaned = cleaned.replace(/check claim|checking\.\.\.|sent to panel|no claim found/gi, '');
   // Strip out "Forwarded" prefix if present at start
   cleaned = cleaned.replace(/^forwarded(\s+many\s+times)?\s*/i, '');
-  // Strip out trailing timestamp if present on newline
-  cleaned = cleaned.replace(/\n\s*\d{1,2}:\d{2}(\s*(AM|PM|am|pm))?$/i, '');
+  // Strip out trailing timestamp if present on newline (e.g. 12:34 PM)
+  cleaned = cleaned.replace(/\n?\s*\d{1,2}:\d{2}(\s*(AM|PM|am|pm))?$/i, '');
   return cleaned.trim();
 }
 
 function findMessageText(row) {
+  if (!row) return "";
+
   // 1. WhatsApp Web standard copyable text inside selectable container:
   const primaryCandidates = [
     row.querySelector('.selectable-text.copyable-text'),
     row.querySelector('span._ao3e'),
     row.querySelector('.selectable-text'),
-    row.querySelector('span.copyable-text')
+    row.querySelector('span.copyable-text'),
+    row.querySelector('.copyable-text'),
+    row.classList?.contains('copyable-text') ? row : null,
+    row
   ];
 
   for (const el of primaryCandidates) {
-    if (el) {
-      const clone = el.cloneNode(true);
-      clone.querySelectorAll(`.${INJECT_BUTTON_CLASS}`).forEach(b => b.remove());
-      const raw = clone.innerText || clone.textContent || "";
-      if (raw && !isSystemNoise(raw)) {
-        return cleanWhatsAppText(raw);
-      }
-    }
-  }
-
-  // 2. Look inside .copyable-text container
-  const copyableDiv = row.querySelector('.copyable-text');
-  if (copyableDiv) {
-    const clone = copyableDiv.cloneNode(true);
+    if (!el) continue;
+    const clone = el.cloneNode(true);
     clone.querySelectorAll(`.${INJECT_BUTTON_CLASS}, [data-testid="msg-meta"], [data-icon], time`).forEach(b => b.remove());
-    const raw = clone.innerText || clone.textContent || "";
+    let raw = clone.innerText || clone.textContent || "";
+    raw = cleanWhatsAppText(raw);
     if (raw && !isSystemNoise(raw)) {
-      return cleanWhatsAppText(raw);
+      return raw;
     }
   }
 
-  // 3. Fallback: inspect direct child text elements while filtering noise
-  const spans = row.querySelectorAll('span[dir="ltr"], span[dir="auto"]');
-  for (const span of spans) {
-    if (span.closest(`.${INJECT_BUTTON_CLASS}`)) continue;
-    if (span.closest('[data-testid="msg-meta"]')) continue;
-    if (span.closest('[data-testid="author"]')) continue;
-
-    const raw = span.innerText || span.textContent || "";
-    if (raw && raw.length > 3 && !isSystemNoise(raw)) {
-      return cleanWhatsAppText(raw);
-    }
-  }
-
-  // 4. Ultimate fallback: full bubble text minus button and metadata
-  const bubble = row.querySelector('[data-id]') || row;
-  if (bubble) {
-    const clone = bubble.cloneNode(true);
+  // 2. Fallback: inspect parent bubble container
+  const parentBubble = row.closest('div[data-testid="msg-container"], div.message-in, div.message-out, div[data-id]');
+  if (parentBubble && parentBubble !== row) {
+    const clone = parentBubble.cloneNode(true);
     clone.querySelectorAll(`.${INJECT_BUTTON_CLASS}, [data-testid="msg-meta"], [data-icon], time`).forEach(b => b.remove());
-    const raw = clone.innerText || clone.textContent || "";
+    let raw = cleanWhatsAppText(clone.innerText || clone.textContent || "");
     if (raw && !isSystemNoise(raw)) {
-      return cleanWhatsAppText(raw);
+      return raw;
     }
   }
 
@@ -139,6 +119,10 @@ const ICONS = {
     <svg class="ffc-shield-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
       <circle cx="12" cy="12" r="4"/>
+    </svg>`,
+  sent: `
+    <svg class="ffc-shield-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
     </svg>`,
   spinner: `
     <svg class="ffc-shield-icon ffc-spin" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -184,24 +168,19 @@ function triggerVerificationForButton(btn, row) {
 
   lastClickedButton = btn;
   btn.setAttribute("data-ffc-checked-text", messageText || "Image Claim");
-  btn.classList.add("ffc-btn-checking");
-  btn.innerHTML = `${ICONS.spinner}<span>Checking...</span>`;
 
-  // Clear existing safety timeout if any
-  if (buttonSafetyTimeouts.has(btn)) {
-    clearTimeout(buttonSafetyTimeouts.get(btn));
-  }
+  // Show visual feedback "Sent to Panel ✓"
+  btn.innerHTML = `${ICONS.sent}<span>Sent to Panel ✓</span>`;
+  btn.style.opacity = "1";
 
-  // Set safety timeout of 25s so button never gets stuck loading forever
-  const timer = setTimeout(() => {
-    if (btn.classList.contains("ffc-btn-checking")) {
-      btn.classList.remove("ffc-btn-checking");
-      btn.classList.add("ffc-badge-unverified");
-      btn.innerHTML = `${ICONS.unverified}<span>❓ Unverified</span>`;
-      btn.title = "Verification timeout. Click to retry.";
+  // Revert button text after 2 seconds
+  setTimeout(() => {
+    if (!btn.classList.contains("ffc-badge-scam") && 
+        !btn.classList.contains("ffc-badge-misleading") && 
+        !btn.classList.contains("ffc-badge-verified")) {
+      btn.innerHTML = `${ICONS.checkClaim}<span>Check Claim</span>`;
     }
-  }, 25000);
-  buttonSafetyTimeouts.set(btn, timer);
+  }, 2200);
 
   const payload = {
     action: "VERIFY_FROM_WHATSAPP",
@@ -222,10 +201,10 @@ function triggerVerificationForButton(btn, row) {
 }
 
 function injectVerifyButtons() {
-  if (!isAutoCheckEnabled) return;
-
-  // Specific message row selectors in WhatsApp Web (avoiding top-level container divs)
+  // Always inject "Check Claim" button on WhatsApp Web bubbles so user can click to verify
   const messageRows = document.querySelectorAll(
+    `div[data-pre-plain-text], ` +
+    `div.copyable-text, ` +
     `div[data-testid="msg-container"], ` +
     `div.message-in, ` +
     `div.message-out, ` +
@@ -236,8 +215,8 @@ function injectVerifyButtons() {
   let autoCheckDelay = 300;
 
   messageRows.forEach((row) => {
-    // Avoid double buttons in same message row or child
-    if (row.querySelector(`.${INJECT_BUTTON_CLASS}`) || row.classList.contains(INJECT_BUTTON_CLASS)) {
+    // Avoid double buttons in same row or parent bubble
+    if (row.querySelector(`.${INJECT_BUTTON_CLASS}`) || row.classList.contains(INJECT_BUTTON_CLASS) || row.closest(`.${INJECT_BUTTON_CLASS}`)) {
       return;
     }
 
@@ -246,9 +225,9 @@ function injectVerifyButtons() {
     const btn = document.createElement("button");
     btn.className = INJECT_BUTTON_CLASS;
     btn.setAttribute("type", "button");
-    btn.setAttribute("aria-label", "Check claim with AI Fact-Checker");
+    btn.setAttribute("aria-label", "Send claim to AI Fact-Checker panel");
     btn.innerHTML = `${ICONS.checkClaim}<span>Check Claim</span>`;
-    btn.title = "Click to fact-check this claim with AI";
+    btn.title = "Click to send this message to AI Fact-Checker panel";
 
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -256,44 +235,28 @@ function injectVerifyButtons() {
       triggerVerificationForButton(btn, row);
     });
 
-    // Target inner bubble container so button sits directly on the message bubble
-    const targetContainer = row.querySelector('.copyable-text') || 
-                            row.querySelector('div[data-id]') || 
-                            row;
+    row.appendChild(btn);
 
-    const computedPosition = window.getComputedStyle(targetContainer).position;
-    if (!computedPosition || computedPosition === "static") {
-      targetContainer.style.position = "relative";
-    }
-    targetContainer.style.overflow = "visible";
-
-    targetContainer.appendChild(btn);
-
-    // Auto-check feature: If auto-check is ON and message is a forwarded message, auto-trigger check!
+    // Auto-check feature: ONLY auto-triggers if user explicitly turned auto-check ON in settings
     if (isAutoCheckEnabled && isForwardedMessage(row) && !row.hasAttribute(AUTO_CHECKED_ATTR)) {
       row.setAttribute(AUTO_CHECKED_ATTR, "true");
       setTimeout(() => {
-        if (isAutoCheckEnabled && document.body.contains(btn) && !btn.classList.contains("ffc-btn-checking")) {
+        if (isAutoCheckEnabled && document.body.contains(btn)) {
           triggerVerificationForButton(btn, row);
         }
       }, autoCheckDelay);
-      autoCheckDelay += 800; // Stagger requests to avoid overwhelming
+      autoCheckDelay += 800; // Stagger requests
     }
   });
 }
 
 // ──────────────────────────────────────────────────────────
-// Listen for Live Verdict Results & Auto Check Toggles
+// Listen for Live Verdict Results Broadcast from Side Panel
 // ──────────────────────────────────────────────────────────
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "TOGGLE_AUTO_CHECK") {
-      isAutoCheckEnabled = request.enabled !== false;
-      if (!isAutoCheckEnabled) {
-        document.querySelectorAll(`.${INJECT_BUTTON_CLASS}`).forEach(el => el.remove());
-      } else {
-        injectVerifyButtons();
-      }
+      isAutoCheckEnabled = request.enabled === true;
       sendResponse({ status: "ok" });
       return true;
     }
@@ -307,11 +270,11 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       // 1. Try to match by text snippet
       if (request.text) {
         const textKey = request.text.trim();
-        const snippet = textKey.slice(0, 25);
+        const snippet = textKey.slice(0, 20);
         const allBtns = Array.from(document.querySelectorAll(`.${INJECT_BUTTON_CLASS}`));
         targetBtn = allBtns.find(b => {
-          const attr = b.getAttribute("data-ffc-checked-text") || "";
-          return attr.includes(snippet) || snippet.includes(attr.slice(0, 15));
+          const attr = (b.getAttribute("data-ffc-checked-text") || "").trim();
+          return attr && (attr.includes(snippet) || textKey.includes(attr.slice(0, 15)));
         });
       }
 
@@ -321,11 +284,6 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       }
 
       if (targetBtn) {
-        if (buttonSafetyTimeouts.has(targetBtn)) {
-          clearTimeout(buttonSafetyTimeouts.get(targetBtn));
-          buttonSafetyTimeouts.delete(targetBtn);
-        }
-
         targetBtn.classList.remove("ffc-btn-checking", "ffc-badge-scam", "ffc-badge-fake", "ffc-badge-misleading", "ffc-badge-verified", "ffc-badge-unverified");
 
         if (status === 'SCAM' || status === 'FAKE' || status === 'FALSE') {
@@ -361,7 +319,6 @@ function debouncedInject() {
 injectVerifyButtons();
 
 const observer = new MutationObserver((mutations) => {
-  if (!isAutoCheckEnabled) return;
   let shouldRun = false;
   for (const mutation of mutations) {
     if (mutation.addedNodes.length > 0) {
@@ -379,4 +336,4 @@ observer.observe(document.body, {
   subtree: true
 });
 
-console.log("🛡️ Forward Fact-Checker: WhatsApp Web DOM observer activated.");
+console.log("🛡️ Forward Fact-Checker: Click-to-panel text transfer activated.");
