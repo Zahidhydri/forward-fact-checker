@@ -118,5 +118,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Keep channel open for async response
   }
 
+  if (request.action === "VERDICT_COMPLETED") {
+    chrome.tabs.query({ url: "*://web.whatsapp.com/*" }, (tabs) => {
+      if (tabs && tabs.length > 0) {
+        tabs.forEach((tab) => {
+          if (tab.id) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: "UPDATE_WHATSAPP_BADGE",
+              text: request.text,
+              verdict: request.verdict
+            }).catch(() => {});
+          }
+        });
+      }
+    });
+    sendResponse({ status: "verdict_broadcasted" });
+    return true;
+  }
+
   return true;
 });

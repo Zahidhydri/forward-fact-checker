@@ -248,6 +248,15 @@ export default function App() {
 
             setVerdict(normalizedVerdict);
 
+            // Broadcast verdict to WhatsApp tabs to update in-chat badge
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+              chrome.runtime.sendMessage({
+                action: "VERDICT_COMPLETED",
+                text: textToVerify,
+                verdict: normalizedVerdict
+              }).catch(() => {});
+            }
+
             const cardText = rawVerdict.card_text || rawVerdict.explanation || textToVerify;
             setReplyCard({
               en: cardText
@@ -614,31 +623,28 @@ export default function App() {
                 </span>
                 <div className="text-xs flex-1">
                   <p className="font-black">Open Extensions in Chrome</p>
-                  <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Navigate to{' '}
-                    <button
-                      type="button"
-                      onClick={handleOpenOrCopyExtensionsUrl}
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-blue-950/80 hover:bg-blue-900/90 text-blue-300 border border-blue-800/80 font-mono text-[11px] font-bold transition cursor-pointer group"
-                      title="Click to copy & open chrome://extensions"
+                  <p className={`text-[11px] mt-1 flex flex-wrap items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <span>Go to</span>
+                    <a
+                      href="chrome://extensions/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
+                          e.preventDefault();
+                          chrome.tabs.create({ url: 'chrome://extensions/' });
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-mono text-[11px] font-bold shadow-sm transition group"
+                      title="Open chrome://extensions/ in a new tab"
                     >
-                      <span>chrome://extensions</span>
-                      {copiedUrl ? (
-                        <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
-                      ) : (
-                        <Copy className="w-3 h-3 text-blue-400 group-hover:scale-110 transition" />
-                      )}
-                    </button>
+                      <span>chrome://extensions/</span>
+                      <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </a>
                   </p>
-                  {copiedUrl ? (
-                    <span className="inline-block mt-1 text-[10px] font-bold text-emerald-400 animate-fade-in">
-                      ✓ Copied to clipboard! Paste into your browser address bar.
-                    </span>
-                  ) : (
-                    <span className="inline-block mt-0.5 text-[10px] text-slate-400">
-                      (Click to copy URL or open in new tab)
-                    </span>
-                  )}
+                  <p className={`text-[10px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Opens Google Chrome's extensions manager in a new tab.
+                  </p>
                 </div>
               </div>
 
