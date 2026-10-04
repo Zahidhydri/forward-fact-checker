@@ -42,10 +42,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentStage, setCurrentStage] = useState('');
-  const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND_URL);
-  const [selectedLang, setSelectedLang] = useState('en');
+  const [backendUrl] = useState(DEFAULT_BACKEND_URL);
+  const [selectedLang, setSelectedLang] = useState(() => {
+    return localStorage.getItem('ffc_selected_lang') || 'en';
+  });
   const [showSettings, setShowSettings] = useState(false);
-  const [useMockFallback, setUseMockFallback] = useState(true);
   const [imgError, setImgError] = useState(false);
 
   // User Customization Settings: Light/Dark Mode & Accent Color
@@ -61,6 +62,11 @@ export default function App() {
   const [autoCheckEnabled, setAutoCheckEnabled] = useState(() => {
     return localStorage.getItem('ffc_autocheck_enabled') !== 'false';
   });
+
+  // Synchronize Selected Language to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('ffc_selected_lang', selectedLang);
+  }, [selectedLang]);
 
   const abortControllerRef = useRef(null);
   const isDark = themeMode === 'dark';
@@ -221,13 +227,9 @@ export default function App() {
           onCard: (cardPayload) => {
             setReplyCard(cardPayload);
           },
-          onError: async (errMsg) => {
-            console.warn('Backend SSE error, checking fallback:', errMsg);
-            if (useMockFallback) {
-              await runLocalMockSimulation(textToVerify);
-            } else {
-              setError(errMsg);
-            }
+          onError: (errMsg) => {
+            console.error('Backend verification error:', errMsg);
+            setError(typeof errMsg === 'string' ? errMsg : 'Backend verification error. Please try again.');
           },
           onDone: () => {
             setLoading(false);
@@ -236,131 +238,9 @@ export default function App() {
         abortControllerRef.current.signal
       );
     } catch (err) {
-      if (useMockFallback) {
-        await runLocalMockSimulation(textToVerify);
-      } else {
-        setError(err.message || 'Verification failed');
-      }
+      setError(err.message || 'Verification connection failed');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const runLocalMockSimulation = async (text) => {
-    setError(null);
-    const isScam = /free|recharge|lottery|winner|kyc|apk|urgent|bill disconnect|bank|otp/i.test(text);
-
-    const mockSteps = [
-      {
-        step: 'extracting',
-        stage: 'extracting',
-        status: 'running',
-        label: '1. Extracting Claims & Language Cues',
-        summary: 'Extracting key factual claims and analyzing language structure.',
-        claim: text.slice(0, 100) + (text.length > 100 ? '...' : '')
-      },
-      {
-        step: 'searching',
-        stage: 'searching',
-        status: 'pending',
-        label: '2. Web & Database Retrieval',
-        summary: 'Searching live web repositories and threat feeds.'
-      },
-      {
-        step: 'reading',
-        stage: 'reading',
-        status: 'pending',
-        label: '3. Analyzing Evidence & Context',
-        summary: 'Analyzing claim matches across retrieved database results.'
-      },
-      {
-        step: 'cross-checking',
-        stage: 'cross-checking',
-        status: 'pending',
-        label: '4. Cross-Checking Official Sources',
-        summary: 'Verifying with official TRAI, PIB, and government sources.'
-      },
-      {
-        step: 'writing',
-        stage: 'writing',
-        status: 'pending',
-        label: '5. Formulating Verdict & Debunk Cards',
-        summary: 'Synthesizing final verdict and shareable cards.'
-      }
-    ];
-
-    setSteps(mockSteps);
-
-    await new Promise(r => setTimeout(r, 800));
-    setSteps(prev => prev.map((s, idx) => idx === 0 ? { ...s, status: 'done', duration: 0.8 } : idx === 1 ? { ...s, status: 'running' } : s));
-
-    await new Promise(r => setTimeout(r, 1200));
-    setSteps(prev => prev.map((s, idx) => idx === 1 ? { 
-      ...s, 
-      status: 'done', 
-      duration: 1.2,
-      sources: [
-        { name: 'PIB Fact Check Registry', url: 'https://factcheck.pib.gov.in' },
-        { name: 'Google Fact Check Tools', url: 'https://toolbox.google.com/factcheck/explorer' }
-      ]
-    } : idx === 2 ? { ...s, status: 'running' } : s));
-
-    await new Promise(r => setTimeout(r, 1000));
-    setSteps(prev => prev.map((s, idx) => idx === 2 ? { ...s, status: 'done', duration: 1.0 } : idx === 3 ? { ...s, status: 'running' } : s));
-
-    await new Promise(r => setTimeout(r, 900));
-    setSteps(prev => prev.map((s, idx) => idx === 3 ? { ...s, status: 'done', duration: 0.9 } : idx === 4 ? { ...s, status: 'running' } : s));
-
-    await new Promise(r => setTimeout(r, 700));
-    setSteps(prev => prev.map(s => ({ ...s, status: 'done' })));
-
-    if (isScam) {
-      setVerdict({
-        status: 'SCAM',
-        confidence: 0.98,
-        risk_level: 'critical',
-        headline: 'Phishing Scam / Fraudulent Forward',
-        explanation: 'Government agencies and telecom operators do NOT offer free 3-month recharges or demand instant bill payments via unofficial links or numbers. The linked URL is designed to steal sensitive credentials.',
-        evidence: [
-          'No official notification issued by Telecom Regulatory Authority (TRAI) or Government of India.',
-          'Phishing domain registration is unverified and flagged by security databases.',
-          'Psychological urgency trigger ("offer ends tonight") detected.'
-        ],
-        sources: [
-          { name: 'PIB Fact Check Alert', url: 'https://factcheck.pib.gov.in' },
-          { name: 'National Cyber Crime Portal', url: 'https://cybercrime.gov.in' }
-        ]
-      });
-
-      setReplyCard({
-        hi: `⚠️ *सावधान! यह मैसेज 100% फेक और स्कैम है* ⚠️\n\nभारत सरकार या किसी भी टेलीकॉम कंपनी द्वारा ऐसा कोई फ्री ऑफर नहीं दिया गया है।\n\n📌 *सच्चाई:* दिए गए लिंक पर क्लिक न करें, यह साइबर फ्रॉड का प्रयास है।\n\n🛡️ _Forward Fact-Checker द्वारा सत्यापित_`,
-        en: `⚠️ *WARNING: This message is a MALICIOUS SCAM* ⚠️\n\nOfficial authorities have confirmed this message is fabricated.\n\n📌 *Fact:* Do NOT click any links or forward this message.\n\n🛡️ _Verified via Forward Fact-Checker_`,
-        mr: `⚠️ *सावधान! हा मेसेज पूर्णपणे बनावट आणि स्कॅम आहे* ⚠️\n\nशासनाने किंवा कोणत्याही अधिकृत कंपनीने अशी कोणतीही घोषणा केलेली नाही.\n\n📌 *वस्तुस्थिती:* या मेसेजमधील कोणत्याही लिंकवर क्लिक करू नका.\n\n🛡️ _Forward Fact-Checker द्वारे पडताळणी_`,
-        hinglish: `⚠️ *Caution! Yeh message fake scam forward hai* ⚠️\n\nGovt ya Telecom companies aisi koi free recharge nahi deti.\n\n📌 *Fact:* Kisi bhi link par click mat kijiye.\n\n🛡️ _Forward Fact-Checker se verified_`
-      });
-    } else {
-      setVerdict({
-        status: 'MISLEADING',
-        confidence: 0.85,
-        risk_level: 'medium',
-        headline: 'Manipulated / Unverified Claim',
-        explanation: 'This forward mixes real events with distorted claims and sensationalized context not corroborated by verified press releases.',
-        evidence: [
-          'Original statement was delivered in a different context without the exaggerated claims made in this forward.',
-          'Official portals have not published any corroborating circular.'
-        ],
-        sources: [
-          { name: 'PIB Press Release Archive', url: 'https://pib.gov.in' },
-          { name: 'PTI News FactCheck', url: 'https://www.ptinews.com' }
-        ]
-      });
-
-      setReplyCard({
-        hi: `⚠️ *ध्यान दें: यह दावा भ्रामक है* ⚠️\n\nइस वायरल संदेश की फैक्ट-चेक जांच में जानकारी संदर्भ से बाहर पाई गई है।\n\n📌 *सच्चाई:* बिना आधिकारिक पुष्टि के कृपया इसे आगे फॉरवर्ड न करें।\n\n🛡️ _Forward Fact-Checker द्वारा सत्यापित_`,
-        en: `⚠️ *ATTENTION: This claim is MISLEADING* ⚠️\n\nThis viral forward has been verified and found to take facts out of context.\n\n📌 *Fact:* Official archives do not corroborate the viral claim.\n\n🛡️ _Verified via Forward Fact-Checker_`,
-        mr: `⚠️ *लक्ष द्या: हा दावा दिशाभूल करणारा आहे* ⚠️\n\nया वायरल संदेशात संदर्भ बदलून माहिती दिली गेली आहे.\n\n📌 *वस्तुस्थिती:* कृपया हा मेसेज पुढे पाठवू नका.\n\n🛡️ _Forward Fact-Checker द्वारे पडताळणी_`,
-        hinglish: `⚠️ *Dhyan dein: Yeh claim misleading hai* ⚠️\n\nIs forward me facts ko out of context present kiya gaya hai.\n\n📌 *Sach:* Bina official source ke ise forward mat karein.\n\n🛡️ _Forward Fact-Checker se verified_`
-      });
     }
   };
 
@@ -408,7 +288,22 @@ export default function App() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          {/* Active Language Switcher Button */}
+          <button
+            type="button"
+            onClick={() => {
+              const nextLang = selectedLang === 'en' ? 'hi' : selectedLang === 'hi' ? 'mr' : 'en';
+              setSelectedLang(nextLang);
+            }}
+            className={`px-2 py-1 rounded-xl text-[10px] font-black border transition flex items-center gap-1 ${
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-slate-700' : 'bg-white border-slate-200 text-slate-800 shadow-sm'
+            }`}
+            title="Click to toggle language (English / Hindi / Marathi)"
+          >
+            <span>{selectedLang === 'hi' ? '🇮🇳 HI' : selectedLang === 'mr' ? '🚩 MR' : '🌐 EN'}</span>
+          </button>
+
           {/* Material You Toggle Switch */}
           <button
             type="button"
@@ -426,12 +321,12 @@ export default function App() {
           <button
             type="button"
             onClick={() => setShowSettings(true)}
-            className={`w-9 h-9 rounded-2xl flex items-center justify-center border transition transform hover:scale-105 active:scale-95 ${
+            className={`w-8 h-8 rounded-xl flex items-center justify-center border transition transform hover:scale-105 active:scale-95 ${
               isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
             }`}
             title="Appearance & Language Settings"
           >
-            <Sliders className="w-4 h-4" />
+            <Sliders className="w-3.5 h-3.5" />
           </button>
         </div>
       </header>
@@ -513,14 +408,22 @@ export default function App() {
 
             {/* Target Language Option */}
             <div>
-              <label className="text-[10px] font-black uppercase tracking-wider block mb-2 text-slate-400">Default Response Language:</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Response & Card Language:</label>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300">
+                  {selectedLang === 'hi' ? 'हिन्दी Active' : selectedLang === 'mr' ? 'मराठी Active' : 'English Active'}
+                </span>
+              </div>
+              <p className={`text-[10px] font-medium mb-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Controls the language sent to the live AI model and auto-selects the WhatsApp debunk response tab.
+              </p>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedLang('en')}
                   className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 border transition ${
                     selectedLang === 'en'
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                      ? `${activeAccent.bgClass || 'bg-blue-600 text-white'} border-transparent shadow-sm`
                       : isDark ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200' : 'bg-slate-100 border-slate-300 text-slate-700'
                   }`}
                 >
@@ -533,7 +436,7 @@ export default function App() {
                   onClick={() => setSelectedLang('hi')}
                   className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 border transition ${
                     selectedLang === 'hi'
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                      ? `${activeAccent.bgClass || 'bg-blue-600 text-white'} border-transparent shadow-sm`
                       : isDark ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200' : 'bg-slate-100 border-slate-300 text-slate-700'
                   }`}
                 >
@@ -545,7 +448,7 @@ export default function App() {
                   onClick={() => setSelectedLang('mr')}
                   className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 border transition ${
                     selectedLang === 'mr'
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                      ? `${activeAccent.bgClass || 'bg-blue-600 text-white'} border-transparent shadow-sm`
                       : isDark ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200' : 'bg-slate-100 border-slate-300 text-slate-700'
                   }`}
                 >
@@ -687,7 +590,14 @@ export default function App() {
         <VerdictCard verdict={verdict} isDark={isDark} />
 
         {(replyCard || verdict) && (
-          <ReplyGenerator card={replyCard} verdict={verdict} isDark={isDark} accent={activeAccent} />
+          <ReplyGenerator 
+            card={replyCard} 
+            verdict={verdict} 
+            isDark={isDark} 
+            accent={activeAccent} 
+            selectedLang={selectedLang}
+            onSelectLang={setSelectedLang}
+          />
         )}
 
         {!loading && !verdict && (

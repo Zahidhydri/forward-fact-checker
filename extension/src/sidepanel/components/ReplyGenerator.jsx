@@ -13,8 +13,14 @@ const LANGUAGES = [
   { id: 'hinglish', label: 'Hinglish', flag: '💬' },
 ];
 
-export function ReplyGenerator({ card = {}, verdict = {}, isDark = true, accent = {} }) {
-  const [selectedLang, setSelectedLang] = useState('hi');
+export function ReplyGenerator({ 
+  card = {}, 
+  verdict = {}, 
+  isDark = true, 
+  accent = {}, 
+  selectedLang = 'en', 
+  onSelectLang = () => {} 
+}) {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [customReplies, setCustomReplies] = useState({});
@@ -116,7 +122,7 @@ export function ReplyGenerator({ card = {}, verdict = {}, isDark = true, accent 
             <button
               key={lang.id}
               type="button"
-              onClick={() => setSelectedLang(lang.id)}
+              onClick={() => onSelectLang(lang.id)}
               className={`flex-1 py-1.5 px-1.5 rounded-full text-xs font-bold transition flex items-center justify-center gap-1 ${
                 isSelected
                   ? `${accent.bgClass || 'bg-blue-600 text-white'} shadow-sm font-black`
